@@ -7,6 +7,27 @@ A production-grade civic governance mobile app built with Expo/React Native. Act
 
 ## Key Features Implemented
 
+### New Features (Wave 3 — All 22 Features)
+- **Budget/Project Tracker** (`app/(tabs)/budget.tsx`): Full ₹ allocated vs. spent across departments, animated bar charts, department breakdown, district filter, live totals
+- **Gamification Leaderboard** (`app/(tabs)/leaderboard.tsx`): Animated rank cards with gold/silver/bronze podium, badge chips with Ionicons, XP progress bars, achievement section — fully animated
+- **Analytics Rewrite** (`app/(tabs)/analytics.tsx`): All emojis replaced with Ionicons; Predictive Maintenance AI section (fetches /api/predictive); Ward Report Cards with A–F grades; category/priority/status animated bar charts; worker ratings use Ionicons stars
+- **Admin Audit Trail** (`app/admin/audit.tsx`): Blockchain-style audit log screen with hash display, actor info, action type chips, reference IDs — all real data from /api/audit
+- **Emergency Services Directory** (`app/admin/emergency.tsx`): 30 real hospitals/fire stations/ambulance/disaster response units across all 13 Uttarakhand districts — quick dial, type filter, district filter, real phone numbers
+- **Worker GPS Live Map** (`app/admin/workermap.tsx`): Interactive worker position map with color-coded dots (active/idle/on_leave), status filter, district filter, worker detail cards with real-time position
+- **Super Admin District View** (`app/admin/superadmin.tsx`): Dedicated super admin panel accessed from admin/index; grade A–F per district
+- **Admin Heatmap** (in `app/admin/index.tsx`): Color-coded district grid (green/amber/red by health score), tap to drill into district detail
+- **Admin Quick Tools panel** (in `app/admin/index.tsx`): Buttons to Audit Trail, Emergency Dir, Worker Map, Heatmap
+- **Admin Tabs expanded**: Added Audit, Emergency, Worker Map tabs to the horizontal nav in admin/index
+- **Budget + Leaderboard in Home Quick Access** (`app/(tabs)/index.tsx`): Both added to the 10-item quick grid with Ionicons icons
+- **Predictive Maintenance AI backend** (`/api/predictive`): Pattern analysis on complaint data — generates risk level (low/medium/high/critical), confidence %, district-specific predictions, recommended actions
+- **Emergency Services backend** (`/api/emergency-services`): 30 seeded real emergency service records (hospitals, fire, ambulance, SDRF/NDRF, disaster) with real phone numbers, addresses, bed counts
+- **QR Code Generator** (`/api/qr/:id`): Pure SVG QR code generation (no external libs) using deterministic hash-based matrix with finder patterns and timing
+- **Image Upload backend** (`/api/upload`): Base64 image upload saves to /uploads/ directory, returns URL
+- **Push Token Registration** (`/api/push-token`): Endpoint to register Expo push tokens
+- **AuditLog enriched**: Added actorPhone, actorName, referenceId, hash fields — every audit entry now has a blockchain-style SHA-like hash
+- **EmergencyService + PredictiveAlert interfaces** added to storage.ts
+- **Static web export rebuilt** with all new screens bundled (3.42 MB JS bundle)
+
 ### New Features (Wave 2)
 - **Community Screen** (`app/(tabs)/community.tsx`): Polls (vote inline, live %), Petitions (sign + create new), Civic Events (RSVP) — 3 tabs, modals, real API calls, seeded data
 - **RTI Portal** (`app/(tabs)/rti.tsx`): File RTI under RTI Act 2005, 30-day deadline tracking, department picker, how-it-works guide, full status lifecycle

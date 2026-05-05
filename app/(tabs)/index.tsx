@@ -33,7 +33,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 const UK_NEWS = [
   {
     id: "n1", tag: "GOVERNMENT", headline: "CM launches ₹2,000 Cr Char Dham Road Widening Project", time: "2h ago",
-    icon: "road-outline" as const, color: "#3B82F6", bg: "#EFF6FF",
+    icon: "car-outline" as const, color: "#3B82F6", bg: "#EFF6FF",
     source: "Uttarakhand Govt Press Release", readTime: "3 min read",
     body: "Chief Minister Pushkar Singh Dhami today inaugurated the ambitious ₹2,000 crore Char Dham Road Widening Project, aimed at improving all-weather connectivity to Badrinath, Kedarnath, Gangotri, and Yamunotri — the four sacred pilgrimage destinations of Uttarakhand.\n\nThe project will widen approximately 825 km of national highways to four lanes, incorporating modern safety features including crash barriers, proper drainage systems, and retaining walls. The work is expected to be completed before the 2027 Char Dham Yatra season.\n\nKey highlights:\n• ₹2,000 crore total project cost\n• 825 km of highway widening across 4 routes\n• 15,000 local employment opportunities created\n• Covers Rishikesh-Rudraprayag, Rishikesh-Gangotri, Rishikesh-Yamunotri, and Rudraprayag-Badrinath routes\n• Estimated 5 lakh additional pilgrims per year benefiting\n\nThe CM urged contractors to ensure quality construction and maintain zero tolerance for sub-standard materials. NHAI officials confirmed that 40% of the work has already been completed.",
   },
@@ -629,6 +629,8 @@ export default function DashboardScreen() {
               { icon: "people" as const,            label: "Community",                   color: "#6366F1", bg: "#EEF2FF", nav: "/(tabs)/community" },
               { icon: "document-lock" as const,     label: "File RTI",                    color: "#059669", bg: "#ECFDF5", nav: "/(tabs)/rti" },
               { icon: "analytics" as const,         label: t("Analytics",  HI.analytics), color: "#06B6D4", bg: "#F0FDFF", nav: "/(tabs)/analytics" },
+              { icon: "bar-chart" as const,         label: "Budget",                      color: "#F59E0B", bg: "#FFFBEB", nav: "/(tabs)/budget" },
+              { icon: "trophy" as const,            label: "Leaderboard",                 color: "#FFD700", bg: "#FFFEF0", nav: "/(tabs)/leaderboard" },
             ].map(item => (
               <Pressable key={item.label} onPress={() => router.push(item.nav as any)} style={[styles.quickCard, { backgroundColor: item.bg, borderColor: item.color + "30" }]}>
                 <View style={[styles.quickCardIcon, { backgroundColor: item.color + "18" }]}>

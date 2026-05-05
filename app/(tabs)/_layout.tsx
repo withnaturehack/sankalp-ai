@@ -79,6 +79,8 @@ export default function TabLayout() {
       <Tabs.Screen name="wards" options={{ href: null }} />
       <Tabs.Screen name="rti" options={{ href: null }} />
       <Tabs.Screen name="map" options={{ href: null }} />
+      <Tabs.Screen name="budget" options={{ href: null }} />
+      <Tabs.Screen name="leaderboard" options={{ href: null }} />
     </Tabs>
   );
 }

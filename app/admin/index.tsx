@@ -13,11 +13,14 @@ import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 
 const ADMIN_TABS = [
-  { key: "command",       label: "War Room",     icon: "radio" as const,          route: null },
-  { key: "reports",       label: "Reports",      icon: "document-text" as const,  route: "/admin/reports" as const },
-  { key: "alerts",        label: "Alerts",       icon: "warning" as const,        route: "/admin/alerts" as const },
-  { key: "workers",       label: "Workers",      icon: "people" as const,         route: "/admin/workers" as const },
-  { key: "announcements", label: "Announce",     icon: "megaphone" as const,      route: "/admin/announcements" as const },
+  { key: "command",       label: "War Room",     icon: "radio" as const,            route: null },
+  { key: "reports",       label: "Reports",      icon: "document-text" as const,    route: "/admin/reports" as const },
+  { key: "alerts",        label: "Alerts",       icon: "warning" as const,          route: "/admin/alerts" as const },
+  { key: "workers",       label: "Workers",      icon: "people" as const,           route: "/admin/workers" as const },
+  { key: "announcements", label: "Announce",     icon: "megaphone" as const,        route: "/admin/announcements" as const },
+  { key: "audit",         label: "Audit",        icon: "git-network" as const,      route: "/admin/audit" as const },
+  { key: "emergency",     label: "Emergency",    icon: "medkit" as const,           route: "/admin/emergency" as const },
+  { key: "workermap",     label: "Worker Map",   icon: "map" as const,              route: "/admin/workermap" as const },
 ];
 
 const CAT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -353,6 +356,59 @@ function SuperAdminView({ user, token, logout }: { user: any; token: string | nu
               <Text style={sas.kpiLabel}>{k.label}</Text>
             </Pressable>
           ))}
+        </View>
+
+        {/* Quick Admin Tools */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+          <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1, marginBottom: 8 }}>ADMIN TOOLS</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {[
+              { label: "Audit Trail",   icon: "git-network" as const,      color: "#06B6D4", bg: "#06B6D411", route: "/admin/audit" },
+              { label: "Emergency Dir", icon: "medkit" as const,            color: "#EF4444", bg: "#EF444411", route: "/admin/emergency" },
+              { label: "Worker Map",    icon: "map" as const,               color: "#22C55E", bg: "#22C55E11", route: "/admin/workermap" },
+              { label: "Heatmap",       icon: "analytics" as const,         color: "#F59E0B", bg: "#F59E0B11", route: "/admin/reports" },
+            ].map(tool => (
+              <Pressable key={tool.label} onPress={() => router.push(tool.route as any)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: tool.bg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: tool.color + "33" }}>
+                <Ionicons name={tool.icon} size={13} color={tool.color} />
+                <Text style={{ color: tool.color, fontSize: 11, fontFamily: "Inter_600SemiBold" }}>{tool.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Heatmap — District Health Overview */}
+        <View style={{ marginHorizontal: 16, backgroundColor: Colors.bgCard, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Ionicons name="grid" size={14} color="#F59E0B" />
+            <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1 }}>Heatmap — All 13 Districts</Text>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {[{ label: "Good", color: "#22C55E" }, { label: "Ok", color: "#F59E0B" }, { label: "Risk", color: "#EF4444" }].map(l => (
+                <View key={l.label} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: l.color }} />
+                  <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>{l.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            {districtStats.map(d => {
+              const health = d.avgHealthScore || d.avgHealth || 0;
+              const color = health >= 70 ? "#22C55E" : health >= 50 ? "#F59E0B" : "#EF4444";
+              const pending = d.pending || d.pendingComplaints || 0;
+              return (
+                <Pressable key={d.district} onPress={() => setSelectedDistrict(d as any)}
+                  style={{ backgroundColor: color + "18", borderRadius: 8, borderWidth: 1, borderColor: color + "44", padding: 8, alignItems: "center", minWidth: 75 }}>
+                  <Text style={{ color, fontSize: 15, fontFamily: "Inter_700Bold" }}>{health}%</Text>
+                  <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_600SemiBold", textAlign: "center", marginTop: 2 }} numberOfLines={1}>{d.district}</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 8, fontFamily: "Inter_400Regular" }}>{pending} open</Text>
+                </Pressable>
+              );
+            })}
+            {districtStats.length === 0 && (
+              <Text style={{ color: Colors.textMuted, fontSize: 12, fontFamily: "Inter_400Regular", padding: 8 }}>Loading district data...</Text>
+            )}
+          </View>
         </View>
 
         {/* Women Safety Priority Alert */}
@@ -1030,7 +1086,7 @@ function DistrictAdminDashboard() {
               <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>Stations</Text>
             </View>
             <View style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: "center", gap: 2 }}>
-              <Text style={{ color: "#EF4444", fontSize: 16, fontFamily: "Inter_700Bold" }}>{activeSos.length}</Text>
+              <Text style={{ color: "#EF4444", fontSize: 16, fontFamily: "Inter_700Bold" }}>{sosAlerts.filter((s: any) => s.status === "active").length}</Text>
               <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>Active SOS</Text>
             </View>
             <View style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: "center", gap: 2 }}>
@@ -1051,11 +1107,11 @@ function DistrictAdminDashboard() {
             {workers.slice(0, 5).map((w, i) => (
               <View key={w.id} style={[{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }, i > 0 && { borderTopWidth: 1, borderTopColor: Colors.border }]}>
                 <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#06B6D422", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#06B6D444" }}>
-                  <Text style={{ fontSize: 16 }}>👷</Text>
+                  <Ionicons name="person" size={16} color="#06B6D4" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>{w.name}</Text>
-                  <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 }}>{w.role} · {w.ward}</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 }}>{w.status} · {w.ward}</Text>
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 3 }}>
                   <View style={[{ borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: w.status === "active" ? "#22C55E22" : "#F59E0B22" }]}>

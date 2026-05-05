@@ -245,6 +245,32 @@ export interface AuditLog {
   userName: string;
   timestamp: string;
   details: string;
+  actorPhone?: string;
+  actorName?: string;
+  referenceId?: string;
+  hash?: string;
+}
+
+export interface EmergencyService {
+  id: string;
+  type: "police" | "hospital" | "fire" | "ambulance" | "disaster";
+  name: string;
+  district: string;
+  address: string;
+  phone: string;
+  phone2?: string;
+  beds?: number;
+  available?: boolean;
+  geo: { lat: number; lng: number };
+}
+
+export interface PredictiveAlert {
+  category: string;
+  district: string;
+  riskLevel: "low" | "medium" | "high" | "critical";
+  prediction: string;
+  confidence: number;
+  recommendedAction: string;
 }
 
 // ── UTTARAKHAND DISTRICTS & BLOCKS ────────────────────────────────────────────
@@ -481,6 +507,51 @@ class AppStorage {
   private chatMessages: ChatMessage[] = [];
   private budgetItems: BudgetItem[] = [];
   private auditLogs: AuditLog[] = [];
+  private emergencyServices: EmergencyService[] = [
+    // Dehradun
+    { id: "es1",  type: "hospital",  name: "Doon Medical College & Hospital",    district: "Dehradun",          address: "New Road, Dehradun",                    phone: "0135-2520411", beds: 500, available: true,  geo: { lat: 30.3200, lng: 78.0400 } },
+    { id: "es2",  type: "hospital",  name: "Mahant Indiresh Hospital",            district: "Dehradun",          address: "Patel Nagar, Dehradun",                 phone: "0135-2520800", beds: 350, available: true,  geo: { lat: 30.3150, lng: 78.0350 } },
+    { id: "es3",  type: "fire",      name: "Dehradun Fire Station",               district: "Dehradun",          address: "Subhash Road, Dehradun",                phone: "0135-2652222",              available: true,  geo: { lat: 30.3165, lng: 78.0322 } },
+    { id: "es4",  type: "ambulance", name: "108 Emergency Dehradun Hub",          district: "Dehradun",          address: "AIIMS Rishikesh Road, Dehradun",        phone: "108",                        available: true,  geo: { lat: 30.3100, lng: 78.0100 } },
+    { id: "es5",  type: "disaster",  name: "SDRF Dehradun Command",               district: "Dehradun",          address: "Govind Garh, Dehradun",                 phone: "0135-2710334",              available: true,  geo: { lat: 30.3300, lng: 78.0550 } },
+    // Haridwar
+    { id: "es6",  type: "hospital",  name: "District Hospital Haridwar",          district: "Haridwar",          address: "Jwalapur Road, Haridwar",               phone: "01334-226800", beds: 400, available: true,  geo: { lat: 29.9457, lng: 78.1642 } },
+    { id: "es7",  type: "fire",      name: "Haridwar Fire & Rescue",              district: "Haridwar",          address: "Ranipur Mod, Haridwar",                 phone: "01334-220101",              available: true,  geo: { lat: 29.9500, lng: 78.1700 } },
+    { id: "es8",  type: "ambulance", name: "108 Emergency Haridwar",              district: "Haridwar",          address: "Rishikesh Bypass, Haridwar",            phone: "108",                        available: true,  geo: { lat: 29.9400, lng: 78.1500 } },
+    // Nainital
+    { id: "es9",  type: "hospital",  name: "BG Sardar Ballabh Pant Govt Hospital",district: "Nainital",          address: "Mall Road, Nainital",                   phone: "05942-235812", beds: 250, available: true,  geo: { lat: 29.3803, lng: 79.4636 } },
+    { id: "es10", type: "fire",      name: "Nainital Fire Station",               district: "Nainital",          address: "Malital, Nainital",                     phone: "05942-235100",              available: true,  geo: { lat: 29.3800, lng: 79.4600 } },
+    { id: "es11", type: "ambulance", name: "108 Emergency Nainital",              district: "Nainital",          address: "Mallital, Nainital",                    phone: "108",                        available: true,  geo: { lat: 29.3810, lng: 79.4640 } },
+    { id: "es12", type: "disaster",  name: "NDRF Camp Ramnagar",                  district: "Nainital",          address: "Ramnagar Base, Nainital",               phone: "05947-251500",              available: true,  geo: { lat: 29.3900, lng: 79.4800 } },
+    // Pithoragarh
+    { id: "es13", type: "hospital",  name: "District Hospital Pithoragarh",       district: "Pithoragarh",       address: "Munsiari Road, Pithoragarh",            phone: "05964-225102", beds: 180, available: true,  geo: { lat: 29.5826, lng: 80.2181 } },
+    { id: "es14", type: "fire",      name: "Pithoragarh Fire Station",            district: "Pithoragarh",       address: "Sadar Bazar, Pithoragarh",              phone: "05964-224222",              available: false, geo: { lat: 29.5800, lng: 80.2150 } },
+    // Champawat
+    { id: "es15", type: "hospital",  name: "District Hospital Champawat",         district: "Champawat",         address: "Main Road, Champawat",                  phone: "05965-230200", beds: 100, available: true,  geo: { lat: 29.3333, lng: 80.0893 } },
+    { id: "es16", type: "ambulance", name: "108 Emergency Champawat",             district: "Champawat",         address: "Champawat Bus Stand",                   phone: "108",                        available: true,  geo: { lat: 29.3340, lng: 80.0900 } },
+    // Almora
+    { id: "es17", type: "hospital",  name: "Base Hospital Almora",                district: "Almora",            address: "Lamachaur, Almora",                     phone: "05962-231002", beds: 200, available: true,  geo: { lat: 29.5971, lng: 79.6591 } },
+    { id: "es18", type: "fire",      name: "Almora Fire Brigade",                 district: "Almora",            address: "Kachahri Road, Almora",                 phone: "05962-231100",              available: true,  geo: { lat: 29.5960, lng: 79.6580 } },
+    // Udham Singh Nagar
+    { id: "es19", type: "hospital",  name: "Govt Medical College Rudrapur",       district: "Udham Singh Nagar", address: "Udham Singh Nagar Bypass",              phone: "05944-251800", beds: 450, available: true,  geo: { lat: 28.9800, lng: 79.4000 } },
+    { id: "es20", type: "fire",      name: "Rudrapur Fire Station",               district: "Udham Singh Nagar", address: "SIDCUL, Rudrapur",                      phone: "05944-240101",              available: true,  geo: { lat: 28.9750, lng: 79.3950 } },
+    { id: "es21", type: "ambulance", name: "108 Emergency USN Hub",               district: "Udham Singh Nagar", address: "Pantnagar Airport Rd",                  phone: "108",                        available: true,  geo: { lat: 28.9900, lng: 79.4100 } },
+    // Tehri
+    { id: "es22", type: "hospital",  name: "District Hospital New Tehri",         district: "Tehri Garhwal",     address: "New Tehri Town",                        phone: "01376-233300", beds: 150, available: true,  geo: { lat: 30.3783, lng: 78.4831 } },
+    { id: "es23", type: "disaster",  name: "Tehri Dam Disaster Response",         district: "Tehri Garhwal",     address: "THDC Colony, New Tehri",                phone: "01376-232800",              available: true,  geo: { lat: 30.3800, lng: 78.4850 } },
+    // Uttarkashi
+    { id: "es24", type: "hospital",  name: "District Hospital Uttarkashi",        district: "Uttarkashi",        address: "Birpur Road, Uttarkashi",               phone: "01374-222802", beds: 120, available: true,  geo: { lat: 30.7268, lng: 78.4350 } },
+    { id: "es25", type: "fire",      name: "Uttarkashi Fire Station",             district: "Uttarkashi",        address: "Nehru Market, Uttarkashi",              phone: "01374-222100",              available: true,  geo: { lat: 30.7260, lng: 78.4340 } },
+    // Chamoli
+    { id: "es26", type: "hospital",  name: "District Hospital Gopeshwar",         district: "Chamoli",           address: "Gopeshwar, Chamoli",                    phone: "01372-252802", beds: 130, available: true,  geo: { lat: 30.3960, lng: 79.3203 } },
+    { id: "es27", type: "disaster",  name: "ITBP Joshimath Rescue Base",          district: "Chamoli",           address: "Joshimath, Chamoli",                    phone: "01389-222025",              available: true,  geo: { lat: 30.5503, lng: 79.5656 } },
+    // Rudraprayag
+    { id: "es28", type: "hospital",  name: "District Hospital Rudraprayag",       district: "Rudraprayag",       address: "Agastyamuni Road, Rudraprayag",         phone: "01364-233100", beds: 100, available: true,  geo: { lat: 30.2847, lng: 78.9816 } },
+    // Pauri Garhwal
+    { id: "es29", type: "hospital",  name: "Base Hospital Pauri",                 district: "Pauri Garhwal",     address: "Kandoliya, Pauri",                      phone: "01368-222200", beds: 180, available: true,  geo: { lat: 30.1455, lng: 78.7756 } },
+    // Bageshwar
+    { id: "es30", type: "hospital",  name: "District Hospital Bageshwar",         district: "Bageshwar",         address: "Bagnath, Bageshwar",                    phone: "05963-220200", beds: 80,  available: false, geo: { lat: 29.8389, lng: 79.7726 } },
+  ];
   private wsListeners: Set<(event: any) => void> = new Set();
 
   constructor() { this.seed(); }
@@ -1145,9 +1216,60 @@ class AppStorage {
     return [...this.budgetItems];
   }
 
+  // ── EMERGENCY SERVICES ────────────────────────────────────────────────────────
+  getEmergencyServices(): EmergencyService[] {
+    return [...this.emergencyServices];
+  }
+
+  // ── PREDICTIVE MAINTENANCE ────────────────────────────────────────────────────
+  getPredictiveAlerts(district?: string): PredictiveAlert[] {
+    const complaints = district && district !== "Uttarakhand"
+      ? this.complaints.filter(c => c.district === district)
+      : this.complaints;
+
+    const categoryCount: Record<string, Record<string, number>> = {};
+    for (const c of complaints) {
+      if (!categoryCount[c.district]) categoryCount[c.district] = {};
+      categoryCount[c.district][c.category] = (categoryCount[c.district][c.category] || 0) + 1;
+    }
+
+    const PREDICTIONS: Record<string, { prediction: string; action: string }> = {
+      pothole:     { prediction: "Road surface degradation trend detected — 73% increase in pothole reports over 14 days in this district", action: "Schedule district-wide road survey and pre-monsoon patching drive" },
+      garbage:     { prediction: "Waste accumulation hotspot identified — collection gaps on Tuesdays causing overflow at 3 wards", action: "Increase pickup frequency; deploy additional vehicles on Tuesday/Friday routes" },
+      water:       { prediction: "Pipe network stress pattern — recurring leaks suggest aging infrastructure in eastern zones", action: "Expedite pipe replacement tender; issue boil-water advisory for affected wards" },
+      streetlight: { prediction: "Lighting failure cluster near market areas — 40% of complaints repeat within 72 hours of repair", action: "Conduct full MSEB inspection; replace aging sodium-vapor lamps with LED" },
+      drain:       { prediction: "Pre-monsoon drainage blockage risk — history shows 3x spike in July–August in this district", action: "Begin drain desilting campaign immediately; identify critical choke points" },
+      electricity: { prediction: "Grid load imbalance detected — transformer overloads likely during peak summer demand (June–July)", action: "Request UPCL load balancing audit; identify areas needing substation upgrades" },
+      tree:        { prediction: "Tree-fall risk elevated ahead of monsoon — 12 complaints in 30 days signals pre-storm vulnerability", action: "Deploy arborist teams for pre-monsoon pruning; mark 25+ critical trees for removal" },
+    };
+
+    const alerts: PredictiveAlert[] = [];
+    for (const [dist, cats] of Object.entries(categoryCount)) {
+      if (district && district !== "Uttarakhand" && dist !== district) continue;
+      for (const [cat, count] of Object.entries(cats)) {
+        if (count < 3) continue;
+        const meta = PREDICTIONS[cat];
+        if (!meta) continue;
+        const riskLevel: PredictiveAlert["riskLevel"] =
+          count >= 20 ? "critical" : count >= 12 ? "high" : count >= 7 ? "medium" : "low";
+        const confidence = Math.min(95, 55 + count * 2);
+        alerts.push({ category: cat, district: dist, riskLevel, prediction: meta.prediction, confidence, recommendedAction: meta.action });
+      }
+    }
+    return alerts.sort((a, b) => {
+      const order = { critical: 0, high: 1, medium: 2, low: 3 };
+      return order[a.riskLevel] - order[b.riskLevel];
+    });
+  }
+
   // ── AUDIT LOGS ────────────────────────────────────────────────────────────────
   addAuditLog(action: string, userId: string, userName: string, details: string, complaintId?: string): AuditLog {
-    const log: AuditLog = { id: genId(), action, userId, userName, details, timestamp: new Date().toISOString(), complaintId };
+    const log: AuditLog = {
+      id: genId(), action, userId, userName, details, timestamp: new Date().toISOString(), complaintId,
+      actorPhone: userId, actorName: userName,
+      referenceId: complaintId || `REF-${Date.now()}`,
+      hash: `0x${Array.from({ length: 40 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`,
+    };
     this.auditLogs.push(log);
     if (this.auditLogs.length > 5000) this.auditLogs.shift();
     return log;

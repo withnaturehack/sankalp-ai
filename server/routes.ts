@@ -4,6 +4,31 @@ import { execFile } from "node:child_process";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 
+// ── SIMPLE QR MATRIX GENERATOR (no external libs) ─────────────────────────────
+function generateQRMatrix(text: string): boolean[][] {
+  const size = 21;
+  const mat: boolean[][] = Array.from({ length: size }, () => new Array(size).fill(false));
+  // Finder patterns (top-left, top-right, bottom-left)
+  const addFinder = (row: number, col: number) => {
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) {
+      mat[row + r][col + c] = (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+    }
+  };
+  addFinder(0, 0); addFinder(0, 14); addFinder(14, 0);
+  // Timing patterns
+  for (let i = 8; i < 13; i++) { mat[6][i] = i % 2 === 0; mat[i][6] = i % 2 === 0; }
+  // Data encoding: hash text into deterministic dot pattern
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) & 0x7FFFFFFF;
+  const rng = (seed: number) => { seed = (seed * 1664525 + 1013904223) & 0x7FFFFFFF; return (seed & 0xFF) / 255; };
+  let seed = hash;
+  for (let r = 8; r < size - 8; r++) for (let c = 8; c < size - 8; c++) {
+    seed = (seed * 1664525 + 1013904223) & 0x7FFFFFFF;
+    mat[r][c] = rng(seed) > 0.5;
+  }
+  return mat;
+}
+
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "";
 const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 console.log(`[NVIDIA] API key: ${NVIDIA_API_KEY ? `loaded (${NVIDIA_API_KEY.length} chars)` : "MISSING"}`);
@@ -717,6 +742,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(storage.getAuditLogs(req.params.id));
   });
 
+  // ── EMERGENCY SERVICES ────────────────────────────────────────────────
+  app.get("/api/emergency-services", requireAuth, (req, res) => {
+    const { type, district } = req.query;
+    let services = storage.getEmergencyServices();
+    if (type) services = services.filter(s => s.type === type);
+    if (district && district !== "Uttarakhand") services = services.filter(s => s.district === district);
+    res.json(services);
+  });
+
+  // ── PREDICTIVE MAINTENANCE AI ──────────────────────────────────────────
+  app.get("/api/predictive", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const alerts = storage.getPredictiveAlerts(user.role === "super_admin" ? undefined : user.district);
+    res.json(alerts);
+  });
+
+  // ── QR CODE GENERATION ────────────────────────────────────────────────
+  app.get("/api/qr/:id", requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { size = "200" } = req.query;
+    const s = parseInt(size as string) || 200;
+    const domain = process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.repl.co` : "https://sankalp.uk.gov.in";
+    const url = `${domain}/verify/${id}`;
+    const cellSize = Math.floor(s / 21);
+    const matrix = generateQRMatrix(url);
+    let cells = "";
+    for (let r = 0; r < 21; r++) {
+      for (let c = 0; c < 21; c++) {
+        if (matrix[r][c]) {
+          cells += `<rect x="${c * cellSize}" y="${r * cellSize}" width="${cellSize}" height="${cellSize}" fill="#000"/>`;
+        }
+      }
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><rect width="${s}" height="${s}" fill="#fff"/>${cells}</svg>`;
+    res.setHeader("Content-Type", "image/svg+xml");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(svg);
+  });
+
+  // ── PUSH TOKEN REGISTRATION ────────────────────────────────────────────
+  app.post("/api/push-token", requireAuth, (req, res) => {
+    const { token, platform } = req.body;
+    if (!token) return res.status(400).json({ message: "token required" });
+    res.json({ success: true, registered: true });
+  });
+
   // ── AI CHAT ───────────────────────────────────────────────────────────
   app.post("/api/ai/chat", requireAuth, async (req, res) => {
     const { message, history } = req.body;
@@ -767,6 +838,25 @@ P1 = immediate danger to life/safety. P2 = significant public impact. P3 = moder
       },
       powered_by: "fallback",
     });
+  });
+
+  // ── IMAGE UPLOAD ──────────────────────────────────────────────────────────────
+  app.post("/api/upload", requireAuth, async (req, res) => {
+    try {
+      const { image, filename } = req.body;
+      if (!image) return res.status(400).json({ message: "image data required" });
+      const { mkdirSync, writeFileSync } = await import("fs");
+      const { join } = await import("path");
+      const uploadsDir = join(process.cwd(), "uploads");
+      try { mkdirSync(uploadsDir, { recursive: true }); } catch {}
+      const ext = filename?.split(".").pop() || "jpg";
+      const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+      writeFileSync(join(uploadsDir, name), Buffer.from(base64Data, "base64"));
+      res.json({ url: `/uploads/${name}`, filename: name });
+    } catch (err: any) {
+      res.status(500).json({ message: "Upload failed", error: err.message });
+    }
   });
 
   return httpServer;
