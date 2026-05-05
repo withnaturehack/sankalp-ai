@@ -8,11 +8,26 @@
       "developmentClient": true,
       "distribution": "internal"
     },
+    "apk": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
+      }
+    },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
+      }
     }
   },
   "submit": {
