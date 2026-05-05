@@ -53,3 +53,8 @@ externalPort = 80
 [[ports]]
 localPort = 8080
 externalPort = 8080
+
+[deployment]
+deploymentTarget = "vm"
+run = ["bash", "-c", "node_modules/.bin/tsx server/index.ts"]
+build = ["bash", "-c", "node scripts/build.js"]

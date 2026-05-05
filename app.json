@@ -46,12 +46,7 @@
     "extra": {
       "router": {
         "origin": "https://replit.com/"
-      },
-      "eas": {
-        "projectId": "09c3550a-dabb-4f1c-8a7a-b69733e059ce"
-      },
-      "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
-    },
-    "owner": "uuyhb"
+      }
+    }
   }
 }

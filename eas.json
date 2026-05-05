@@ -12,22 +12,13 @@
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
-      }
+      "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
-      }
+      "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": "animation-graphics-hub--monalweb61.replit.app"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
