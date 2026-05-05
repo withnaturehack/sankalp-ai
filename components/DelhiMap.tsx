@@ -14,6 +14,23 @@ const UK_REGION: Region = {
   longitudeDelta: 3.8,
 };
 
+// District-specific map regions
+const DISTRICT_REGIONS: Record<string, Region> = {
+  "Dehradun":          { latitude: 30.3165, longitude: 78.0322, latitudeDelta: 0.6, longitudeDelta: 0.7 },
+  "Haridwar":          { latitude: 29.9457, longitude: 78.1642, latitudeDelta: 0.5, longitudeDelta: 0.6 },
+  "Tehri Garhwal":     { latitude: 30.3822, longitude: 78.4800, latitudeDelta: 0.8, longitudeDelta: 0.9 },
+  "Pauri Garhwal":     { latitude: 29.6864, longitude: 78.9764, latitudeDelta: 0.9, longitudeDelta: 1.0 },
+  "Rudraprayag":       { latitude: 30.2846, longitude: 78.9806, latitudeDelta: 0.8, longitudeDelta: 0.9 },
+  "Chamoli":           { latitude: 30.4090, longitude: 79.3206, latitudeDelta: 1.0, longitudeDelta: 1.2 },
+  "Uttarkashi":        { latitude: 30.7268, longitude: 78.4354, latitudeDelta: 0.9, longitudeDelta: 1.0 },
+  "Pithoragarh":       { latitude: 29.5829, longitude: 80.2178, latitudeDelta: 1.0, longitudeDelta: 1.2 },
+  "Bageshwar":         { latitude: 29.8371, longitude: 79.7715, latitudeDelta: 0.7, longitudeDelta: 0.8 },
+  "Almora":            { latitude: 29.5971, longitude: 79.6596, latitudeDelta: 0.7, longitudeDelta: 0.8 },
+  "Champawat":         { latitude: 29.3377, longitude: 80.0914, latitudeDelta: 0.7, longitudeDelta: 0.8 },
+  "Nainital":          { latitude: 29.3919, longitude: 79.4542, latitudeDelta: 0.5, longitudeDelta: 0.6 },
+  "Udham Singh Nagar": { latitude: 28.9982, longitude: 79.5050, latitudeDelta: 0.6, longitudeDelta: 0.7 },
+};
+
 const PRIORITY_COLORS: Record<string, string> = {
   P1: "#EF4444", P2: "#F59E0B", P3: "#3B82F6", P4: "#6B7280",
 };
@@ -77,7 +94,8 @@ function CalloutView({ item }: { item: MarkerItem }) {
 
 export default function UttarakhandMap({ complaints = [], sosAlerts = [], workers = [], policeStations = [], riskZones = [], filter = "all", userLocation, userDistrict, style }: Props) {
   const mapRef = useRef<MapView>(null);
-  const [region, setRegion] = useState<Region>(UK_REGION);
+  const initialRegion = (userDistrict && DISTRICT_REGIONS[userDistrict]) ? DISTRICT_REGIONS[userDistrict] : UK_REGION;
+  const [region, setRegion] = useState<Region>(initialRegion);
 
   const show = (type: "complaints" | "sos" | "workers" | "police" | "risks") =>
     filter === "all" || filter === type;
@@ -164,7 +182,7 @@ export default function UttarakhandMap({ complaints = [], sosAlerts = [], worker
         ))}
       </MapView>
 
-      <Pressable style={styles.recenterBtn} onPress={() => mapRef.current?.animateToRegion(UK_REGION, 500)}>
+      <Pressable style={styles.recenterBtn} onPress={() => mapRef.current?.animateToRegion(initialRegion, 500)}>
         <Ionicons name="locate" size={20} color="#fff" />
       </Pressable>
     </View>

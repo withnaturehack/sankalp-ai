@@ -271,24 +271,55 @@ function getUserDistrict(req: Request): string | undefined {
   return user.district;
 }
 
+// ── RATE LIMITING ─────────────────────────────────────────────────────────────
+const RL_MAP = new Map<string, { count: number; resetAt: number }>();
+function rateLimit(maxReq: number, windowMs: number) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const fwd = req.headers["x-forwarded-for"];
+    const key: string = (Array.isArray(fwd) ? fwd[0] : fwd) || (req.ip as string) || "anon";
+    const now = Date.now();
+    const entry = RL_MAP.get(key);
+    if (!entry || now > entry.resetAt) {
+      RL_MAP.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (entry.count >= maxReq) {
+      return res.status(429).json({ message: "Too many requests — please wait a moment and try again." });
+    }
+    entry.count++;
+    next();
+  };
+}
+// Clean up stale rate-limit entries every 5 min
+setInterval(() => { const now = Date.now(); RL_MAP.forEach((v, k) => { if (now > v.resetAt) RL_MAP.delete(k); }); }, 300_000);
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
   const broadcast = (data: any) => {
     const msg = JSON.stringify(data);
-    wss.clients.forEach(client => {
+    wss.clients.forEach((client: any) => {
       if (client.readyState === WebSocket.OPEN) client.send(msg);
     });
   };
   storage.addWsListener(broadcast);
-  wss.on("connection", (ws) => {
-    ws.send(JSON.stringify({ type: "connected", message: "SANKALP AI Real-time connected" }));
+  wss.on("connection", (ws: any, req: any) => {
+    // Authenticate via token query param: ?token=<jwt>
+    const url = new URL(req.url || "/", "http://localhost");
+    const tok = url.searchParams.get("token");
+    const wsUser = tok ? storage.validateToken(tok) : null;
+    if (!wsUser) {
+      ws.send(JSON.stringify({ type: "error", message: "Authentication required" }));
+      ws.close(4001, "Unauthorized");
+      return;
+    }
+    ws.send(JSON.stringify({ type: "connected", message: "SANKALP AI Real-time connected", district: wsUser.district }));
     ws.on("error", () => {});
   });
 
   // ── AUTH ──────────────────────────────────────────────────────────────
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", rateLimit(5, 60_000), async (req, res) => {
     try {
       const { name, phone, pin, district } = req.body;
       if (!name || !phone || !pin) return res.status(400).json({ message: "Name, phone, and PIN required" });
@@ -296,8 +327,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (phone.length !== 10) return res.status(400).json({ message: "Phone must be 10 digits" });
       const existing = await storage.findUserByPhone(phone);
       if (existing) return res.status(400).json({ message: "Phone number already registered" });
+      const bcrypt = await import("bcrypt");
+      const hashedPin = await bcrypt.hash(pin, 10);
       const user = await storage.createUser({
-        name, phone, pin, role: "citizen",
+        name, phone, pin: hashedPin, role: "citizen",
         district: district || "Dehradun",
         points: 0, badges: ["new_citizen"], level: 1
       });
@@ -309,12 +342,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch { res.status(500).json({ message: "Registration failed" }); }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", rateLimit(10, 60_000), async (req, res) => {
     try {
       const { phone, pin } = req.body;
       if (!phone || !pin) return res.status(400).json({ message: "Phone and PIN required" });
       const user = await storage.findUserByPhone(phone);
-      if (!user || user.pin !== pin) return res.status(401).json({ message: "Invalid phone or PIN" });
+      if (!user) return res.status(401).json({ message: "Invalid phone or PIN" });
+      // Backward-compat: bcrypt hashes start with $2b$ / $2a$; legacy plain-text pins compared directly
+      let pinValid = false;
+      if (user.pin && (user.pin.startsWith("$2b$") || user.pin.startsWith("$2a$"))) {
+        const bcrypt = await import("bcrypt");
+        pinValid = await bcrypt.compare(pin, user.pin);
+      } else {
+        pinValid = user.pin === pin;
+      }
+      if (!pinValid) return res.status(401).json({ message: "Invalid phone or PIN" });
       const token = storage.createToken(user.id);
       res.json({
         user: { id: user.id, name: user.name, phone: user.phone, role: user.role, district: user.district, points: user.points, badges: user.badges, level: user.level },
@@ -813,11 +855,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── AI CHAT ───────────────────────────────────────────────────────────
-  app.post("/api/ai/chat", requireAuth, async (req, res) => {
+  app.post("/api/ai/chat", requireAuth, rateLimit(30, 60_000), async (req, res) => {
     const { message, history } = req.body;
     if (!message) return res.status(400).json({ message: "message required" });
 
     const user = (req as any).user;
+
+    // Try NVIDIA first when key is available
+    if (NVIDIA_API_KEY) {
+      try {
+        const systemPrompt = buildSystemPrompt(user?.name, user?.district);
+        const msgs: Array<{ role: string; content: string }> = [
+          { role: "system", content: systemPrompt },
+          ...(history || []).slice(-6).map((h: any) => ({
+            role: h.role === "ai" ? "assistant" : h.role,
+            content: h.content,
+          })),
+          { role: "user", content: message },
+        ];
+        const nvidiaReply = await callNvidiaChat(msgs, "meta/llama-3.1-8b-instruct", 500);
+        if (nvidiaReply) {
+          return res.json({ reply: nvidiaReply, timestamp: new Date().toISOString(), powered_by: "NVIDIA LLaMA" });
+        }
+      } catch (e) {
+        console.error("[AI Chat] NVIDIA failed, falling back to local:", e);
+      }
+    }
+
+    // Fallback to local rule-based engine
     const reply = generateAIReply(message, history || [], user?.name, user?.district);
     res.json({ reply, timestamp: new Date().toISOString(), powered_by: "SANKALP AI" });
   });

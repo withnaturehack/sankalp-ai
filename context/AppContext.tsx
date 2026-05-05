@@ -282,7 +282,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const connect = () => {
       try {
-        ws = new WebSocket(getWsUrl());
+        const wsBaseUrl = getWsUrl();
+        const wsUrlWithToken = token ? `${wsBaseUrl}${wsBaseUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : wsBaseUrl;
+        ws = new WebSocket(wsUrlWithToken);
         wsRef.current = ws;
         ws.onmessage = (event) => {
           try {

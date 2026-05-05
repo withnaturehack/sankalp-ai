@@ -7,6 +7,16 @@ A production-grade civic governance mobile app built with Expo/React Native. Act
 
 ## Key Features Implemented
 
+### Wave 4 — Security, NVIDIA AI, Maps & UX Overhaul
+- **Tab Layout Overhaul** (`app/(tabs)/_layout.tsx`): Replaced Community tab with "District Map" tab as primary nav; Community hidden (still accessible via Quick Access). New icons: home-outline/home, document-text-outline/document-text, map-outline/map, shield-checkmark-outline/shield-checkmark, person-circle-outline/person-circle. SOS badge shows active count.
+- **NVIDIA LLaMA AI Chat** (`server/routes.ts`): `/api/ai/chat` now calls NVIDIA LLaMA 3.1 8B Instruct via curlPost with full system prompt + conversation history. Falls back to local rule-based engine if NVIDIA unavailable. Powered_by field shows "NVIDIA LLaMA" vs "SANKALP AI".
+- **Rate Limiting** (`server/routes.ts`): In-memory rate limiter (RL_MAP) applied to `/api/auth/register` (5/min), `/api/auth/login` (10/min), `/api/ai/chat` (30/min). Auto-cleans stale entries every 5 min.
+- **bcrypt PIN Hashing** (`server/routes.ts`): New user registrations hash PIN with bcrypt(10). Login uses backward-compat check: if stored PIN starts with `$2b$` compare via bcrypt, else plain-text compare for seeded demo users.
+- **WebSocket Authentication** (`server/routes.ts` + `context/AppContext.tsx`): WS server now validates `?token=` query param on connection; unauthenticated connections receive error and are closed (4001). AppContext appends token to WS URL automatically.
+- **District-Specific Map Centering** (`components/DelhiMap.tsx`): All 13 Uttarakhand district regions defined (lat/lng/delta). Map initializes centered on user's district instead of full Uttarakhand. Recenter button zooms to user's district. Map tab header shows "{District} Map" instead of generic title.
+- **Hindi Department Names** (`app/admin/departments.tsx`): DEPT_META extended with `hindi` (देवनागरी name), `description` (Hindi subtitle). Department cards and modal sheet now show Hindi name prominently with English short code and description below.
+- **Web Static Rebuild**: Rebuilt `static-build/web/` with all new tab layout, map, and UI changes via `expo export --platform web`.
+
 ### New Features (Wave 3 — All 22 Features)
 - **Budget/Project Tracker** (`app/(tabs)/budget.tsx`): Full ₹ allocated vs. spent across departments, animated bar charts, department breakdown, district filter, live totals
 - **Gamification Leaderboard** (`app/(tabs)/leaderboard.tsx`): Animated rank cards with gold/silver/bronze podium, badge chips with Ionicons, XP progress bars, achievement section — fully animated

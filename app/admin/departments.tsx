@@ -33,13 +33,13 @@ interface DeptComplaint {
   upvotes: number;
 }
 
-const DEPT_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; short: string }> = {
-  "UPCL (Uttarakhand Power Corporation Ltd)":  { icon: "flash",           color: "#8B5CF6", short: "UPCL" },
-  "Jal Sansthan (Uttarakhand Jal Sansthan)":   { icon: "water",           color: "#3B82F6", short: "JAL" },
-  "ULB (Urban Local Bodies / Nagar Palika)":   { icon: "business",        color: "#F59E0B", short: "ULB" },
-  "PWD (Public Works Department)":             { icon: "construct",       color: "#EF4444", short: "PWD" },
-  "Forest Department / DM Office":             { icon: "leaf",            color: "#00A651", short: "FRD" },
-  "DM Office (District Magistrate)":           { icon: "shield",          color: "#06B6D4", short: "DMO" },
+const DEPT_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; short: string; hindi: string; description: string }> = {
+  "UPCL (Uttarakhand Power Corporation Ltd)":  { icon: "flash",           color: "#8B5CF6", short: "UPCL", hindi: "उत्तराखंड पावर कॉर्पोरेशन", description: "बिजली आपूर्ति व स्ट्रीट लाइट" },
+  "Jal Sansthan (Uttarakhand Jal Sansthan)":   { icon: "water",           color: "#3B82F6", short: "JAL",  hindi: "जल संस्थान",                description: "पेयजल आपूर्ति व सीवर" },
+  "ULB (Urban Local Bodies / Nagar Palika)":   { icon: "business",        color: "#F59E0B", short: "ULB",  hindi: "नगर पालिका / ULB",          description: "कूड़ा संग्रह व नाली सफाई" },
+  "PWD (Public Works Department)":             { icon: "construct",       color: "#EF4444", short: "PWD",  hindi: "लोक निर्माण विभाग",          description: "सड़क, पुल व गड्ढे" },
+  "Forest Department / DM Office":             { icon: "leaf",            color: "#00A651", short: "FRD",  hindi: "वन विभाग",                   description: "पेड़, वन संरक्षण" },
+  "DM Office (District Magistrate)":           { icon: "shield",          color: "#06B6D4", short: "DMO",  hindi: "जिला मजिस्ट्रेट कार्यालय",  description: "सामान्य शिकायतें व आपदा" },
 };
 
 const PRIORITY_COLORS: Record<string, string> = { P1: "#EF4444", P2: "#F59E0B", P3: "#3B82F6", P4: "#6B7280" };
@@ -188,9 +188,10 @@ export default function DepartmentsScreen() {
                     <Ionicons name={meta.icon} size={22} color={meta.color} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={cs.deptName} numberOfLines={1}>{dept.name}</Text>
+                    <Text style={cs.deptName} numberOfLines={1}>{meta.hindi}</Text>
+                    <Text style={cs.deptNameEn} numberOfLines={1}>{meta.short} · {meta.description}</Text>
                     <View style={{ flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                      {dept.categories.slice(0, 3).map(c => (
+                      {dept.categories.slice(0, 2).map(c => (
                         <View key={c} style={[cs.catChip, { borderColor: meta.color + "44" }]}>
                           <Text style={[cs.catChipText, { color: meta.color }]}>{c}</Text>
                         </View>
@@ -243,8 +244,8 @@ export default function DepartmentsScreen() {
                       <Ionicons name={meta.icon} size={20} color={meta.color} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={cs.sheetTitle} numberOfLines={2}>{selectedDept.name}</Text>
-                      <Text style={cs.sheetSub}>{selectedDept.complaints} complaints routed</Text>
+                      <Text style={cs.sheetTitle} numberOfLines={1}>{meta.hindi}</Text>
+                      <Text style={cs.sheetSub}>{meta.short} · {selectedDept.complaints} complaints routed</Text>
                     </View>
                     <Pressable onPress={() => setSelectedDept(null)}>
                       <Ionicons name="close" size={22} color={Colors.textMuted} />
@@ -336,7 +337,9 @@ const cs = StyleSheet.create({
   deptGrad:   { ...StyleSheet.absoluteFillObject, borderRadius: 16 },
   deptTop:    { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   deptIcon:   { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  deptName:   { color: Colors.textPrimary, fontSize: 13, fontFamily: "Inter_600SemiBold", lineHeight: 18 },
+  deptName:   { color: Colors.textPrimary, fontSize: 14, fontFamily: "Inter_700Bold", lineHeight: 20 },
+  deptNameEn: { color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
+  deptDesc:   { color: Colors.textSecondary, fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
   catChip:    { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, backgroundColor: "transparent" },
   catChipText:{ fontSize: 9, fontFamily: "Inter_600SemiBold" },
   deptStats:  { flexDirection: "row", gap: 8, marginBottom: 8 },

@@ -96,10 +96,10 @@ export default function MapScreen() {
         <View style={ms.headerBg} />
         <View style={ms.headerContent}>
           <View>
-            <Text style={ms.headerTitle}>Live City Map</Text>
+            <Text style={ms.headerTitle}>{user?.district || "Uttarakhand"} Map</Text>
             <View style={ms.liveRow}>
               <View style={ms.liveDot} />
-              <Text style={ms.liveText}>{complaints.length} markers · Updating live</Text>
+              <Text style={ms.liveText}>{complaints.length} markers · Live</Text>
             </View>
           </View>
           <Animated.View style={[ms.headerStats, { opacity: statsAnim }]}>

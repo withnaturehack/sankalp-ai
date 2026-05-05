@@ -13,26 +13,26 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#E64A19",
+        tabBarActiveTintColor: "#FF9933",
         tabBarInactiveTintColor: "#9CA3AF",
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: "#0A0F1C",
           borderTopWidth: 1,
-          borderTopColor: "#E5E7EB",
+          borderTopColor: "#1F2937",
           elevation: 0,
-          height: isWeb ? 84 : 62,
+          height: isWeb ? 84 : 64,
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 16,
         },
         tabBarBackground: () => (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0A0F1C" }]} />
         ),
         tabBarLabelStyle: {
           fontSize: 10,
           fontFamily: "Inter_600SemiBold",
-          marginBottom: isWeb ? 8 : 2,
+          marginBottom: isWeb ? 8 : 3,
         },
       }}
     >
@@ -40,21 +40,27 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="complaints"
         options={{
           title: "Reports",
-          tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "document-text" : "document-text-outline"} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="community"
+        name="map"
         options={{
-          title: "Community",
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+          title: "District Map",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "map" : "map-outline"} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -63,22 +69,26 @@ export default function TabLayout() {
           title: "SOS",
           tabBarBadge: stats.sos > 0 ? stats.sos : undefined,
           tabBarBadgeStyle: { backgroundColor: "#EF4444", fontSize: 9 },
-          tabBarIcon: ({ color, size }) => <Ionicons name="warning" size={size} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "shield-checkmark" : "shield-checkmark-outline"} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={22} color={color} />
+          ),
         }}
       />
+      <Tabs.Screen name="community" options={{ href: null }} />
       <Tabs.Screen name="ai" options={{ href: null }} />
       <Tabs.Screen name="bills" options={{ href: null }} />
       <Tabs.Screen name="analytics" options={{ href: null }} />
       <Tabs.Screen name="wards" options={{ href: null }} />
       <Tabs.Screen name="rti" options={{ href: null }} />
-      <Tabs.Screen name="map" options={{ href: null }} />
       <Tabs.Screen name="budget" options={{ href: null }} />
       <Tabs.Screen name="leaderboard" options={{ href: null }} />
     </Tabs>
