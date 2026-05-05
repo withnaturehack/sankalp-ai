@@ -1,0 +1,103 @@
+import { fetch } from "expo/fetch";
+import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import Constants from "expo-constants";
+
+/**
+ * Gets the base URL for the Express API server
+ */
+export function getWsUrl(): string {
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "ws://localhost:5000/ws";
+  }
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `wss://${process.env.EXPO_PUBLIC_DOMAIN}/ws`;
+  }
+  return "ws://localhost:5000/ws";
+}
+
+export function getApiUrl(): string {
+  // When running in a browser on localhost (dev / e2e tests), talk directly to
+  // the local Express backend so we avoid the Replit proxy redirect that breaks
+  // CORS preflight requests.
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "http://localhost:5000/";
+  }
+
+  // EXPO_PUBLIC_ env vars are injected at Metro bundle time — prefer over app.json extra
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN;
+    return `https://${domain}/`;
+  }
+
+  const host =
+    (Constants.expoConfig as any)?.extra?.EXPO_PUBLIC_DOMAIN ??
+    (Constants.manifest as any)?.extra?.EXPO_PUBLIC_DOMAIN;
+
+  if (!host) {
+    console.warn("Domain not set, using fallback");
+    return "http://localhost:5000/";
+  }
+
+  return `https://${host}/`;
+}
+
+async function throwIfResNotOk(res: Response) {
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new Error(`${res.status}: ${text}`);
+  }
+}
+
+export async function apiRequest(
+  method: string,
+  route: string,
+  data?: unknown,
+): Promise<Response> {
+  const baseUrl = getApiUrl();
+  const url = new URL(route, baseUrl);
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers: data ? { "Content-Type": "application/json" } : {},
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return res;
+}
+
+type UnauthorizedBehavior = "returnNull" | "throw";
+
+export const getQueryFn =
+  <T>({ on401 }: { on401: UnauthorizedBehavior }): QueryFunction<T> =>
+  async ({ queryKey }) => {
+    const baseUrl = getApiUrl();
+    const url = new URL(queryKey.join("/") as string, baseUrl);
+
+    const res = await fetch(url.toString(), {
+      credentials: "include",
+    });
+
+    if (on401 === "returnNull" && res.status === 401) {
+      return null as T;
+    }
+
+    await throwIfResNotOk(res);
+    return (await res.json()) as T;
+  };
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      queryFn: getQueryFn({ on401: "throw" }),
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+      retry: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
