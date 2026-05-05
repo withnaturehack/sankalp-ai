@@ -263,7 +263,7 @@ function SOSScreenInner() {
         setShakeCount(shakeTs.current.length);
         // Auto-clear display after 2s of no new shakes
         setTimeout(() => setShakeCount(c => Math.max(0, c - 1)), 2100);
-        if (shakeTs.current.length >= 5) {
+        if (shakeTs.current.length >= 4) {
           shakeTs.current = [];
           setShakeCount(0);
           activateWomenSafety("shake");
@@ -300,7 +300,7 @@ function SOSScreenInner() {
         const now = Date.now();
         webKeyTs.push(now);
         while (webKeyTs.length > 0 && now - webKeyTs[0] > 4000) webKeyTs.shift();
-        if (webKeyTs.length >= 6) { webKeyTs.length = 0; handleVolumeUpPress(); }
+        if (webKeyTs.length >= 5) { webKeyTs.length = 0; handleVolumeUpPress(); }
       }
     };
     window.addEventListener("keydown", handler);
@@ -483,7 +483,7 @@ function SOSScreenInner() {
     if (Platform.OS !== "web") {
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     }
-    if (cnt >= 6) {
+    if (cnt >= 5) {
       volumePressTs.current = [];
       setVolumePressCount(0);
       activateWomenSafety("volume_up");
@@ -538,12 +538,12 @@ function SOSScreenInner() {
           </Animated.View>
           {volumePressCount > 0 && (
             <Animated.View style={[s.volCountBadge, { transform: [{ scale: volCountPop }] }]}>
-              <Text style={s.volCountText}>{volumePressCount}/6</Text>
+              <Text style={s.volCountText}>{volumePressCount}/5</Text>
             </Animated.View>
           )}
           <View style={s.volBtnLabel}>
             <Text style={s.volBtnLabelText}>Vol+</Text>
-            <Text style={s.volBtnLabelText}>×6</Text>
+            <Text style={s.volBtnLabelText}>×5</Text>
           </View>
         </View>
       )}

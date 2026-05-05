@@ -512,6 +512,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(summary);
   });
 
+  // ── DEPARTMENT ROUTING ────────────────────────────────────────────────
+  app.get("/api/departments", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const district = user.role === "super_admin" ? undefined : user.district;
+    const complaints = storage.getComplaints(district);
+    const deptMap: Record<string, { name: string; complaints: number; pending: number; resolved: number; categories: string[] }> = {};
+    complaints.forEach(c => {
+      const dept = c.department || "DM Office (District Magistrate)";
+      if (!deptMap[dept]) deptMap[dept] = { name: dept, complaints: 0, pending: 0, resolved: 0, categories: [] };
+      deptMap[dept].complaints++;
+      if (c.status === "pending" || c.status === "in_progress") deptMap[dept].pending++;
+      if (c.status === "resolved" || c.status === "closed") deptMap[dept].resolved++;
+      if (!deptMap[dept].categories.includes(c.category)) deptMap[dept].categories.push(c.category);
+    });
+    res.json(Object.values(deptMap).sort((a, b) => b.complaints - a.complaints));
+  });
+
+  app.get("/api/departments/:name/complaints", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const district = user.role === "super_admin" ? undefined : user.district;
+    const complaints = storage.getComplaints(district).filter(c => (c.department || "DM Office (District Magistrate)") === decodeURIComponent(req.params.name));
+    res.json(complaints);
+  });
+
   // ── ADMIN EMERGENCY BROADCAST ────────────────────────────────────────
   app.post("/api/admin/emergency-broadcast", requireAdmin, (req, res) => {
     const { message, severity } = req.body;

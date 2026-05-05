@@ -54,6 +54,8 @@ export interface Complaint {
   rating?: number;
   feedback?: string;
   reopened?: boolean;
+  department?: string;
+  district?: string;
 }
 
 export interface SOSAlert {
@@ -102,6 +104,7 @@ export interface Worker {
   phone: string;
   ward: string;
   wardNumber: number;
+  district: string;
   score: number;
   resolvedToday: number;
   totalResolved: number;

@@ -90,16 +90,30 @@ export default function WorkerMapScreen() {
     if (!silent) setLoading(true);
     try {
       const tok = await AsyncStorage.getItem("token");
-      const res = await fetch(`${getApiUrl()}api/workers`, {
+      if (!tok) { setLoading(false); setRefreshing(false); return; }
+      const base = getApiUrl();
+      // Try admin endpoint first, fall back to citizen endpoint
+      let res = await fetch(`${base}api/admin/workers`, {
         headers: { Authorization: `Bearer ${tok}` },
       });
+      if (!res.ok) {
+        res = await fetch(`${base}api/workers`, {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+      }
       if (res.ok) {
         const data = await res.json();
-        setWorkers(data);
+        setWorkers(Array.isArray(data) ? data : []);
       }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
+
+  // Auto-refresh every 30s
+  useEffect(() => {
+    const interval = setInterval(() => load(true), 30000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   useEffect(() => { load(); }, []);
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
-  Modal, TextInput, Alert, Platform,
+  Modal, TextInput, Alert, Platform, Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,7 +10,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-type TabKey = "polls" | "petitions" | "events";
+type TabKey = "polls" | "petitions" | "events" | "map";
 
 interface Poll {
   id: string; question: string; options: string[]; votes: number[]; voterIds: string[];
@@ -85,6 +85,9 @@ export default function CommunityScreen() {
 
   const [selectedPetition, setSelectedPetition] = useState<Petition | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CivicEvent | null>(null);
+  const [policeStations, setPoliceStations] = useState<any[]>([]);
+  const [emergencyServices, setEmergencyServices] = useState<any[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
   const [showNewPetition, setShowNewPetition] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -115,6 +118,25 @@ export default function CommunityScreen() {
   useEffect(() => {
     if (token) loadData(token);
   }, [token, loadData]);
+
+  const loadMap = useCallback(async () => {
+    if (!token) return;
+    setMapLoading(true);
+    try {
+      const api = makeApiCall(token);
+      const [ps, es] = await Promise.all([
+        api("/api/police-stations"),
+        api("/api/emergency-services"),
+      ]);
+      setPoliceStations(Array.isArray(ps) ? ps : []);
+      setEmergencyServices(Array.isArray(es) ? es : []);
+    } catch {}
+    finally { setMapLoading(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === "map" && token && policeStations.length === 0) loadMap();
+  }, [tab, token]);
 
   const handleVote = useCallback(async (pollId: string, optionIndex: number) => {
     if (!token) return;
@@ -175,13 +197,17 @@ export default function CommunityScreen() {
       {/* Header */}
       <LinearGradient colors={["#1E3A5F", "#2563EB", "#3B82F6"]} style={[s.header, { paddingTop: topPad + 12 }]}>
         <Text style={s.headerTitle}>Community Voice</Text>
-        <Text style={s.headerSub}>Polls · Petitions · Civic Events</Text>
+        <Text style={s.headerSub}>Polls · Petitions · Events · District Map</Text>
         <View style={s.tabRow}>
-          {(["polls", "petitions", "events"] as TabKey[]).map(t => (
-            <Pressable key={t} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabActive]}>
-              <Text style={[s.tabText, tab === t && s.tabTextActive]}>
-                {t === "polls" ? `📊 Polls (${polls.length})` : t === "petitions" ? `✍️ Petitions (${petitions.length})` : `📅 Events (${events.length})`}
-              </Text>
+          {([
+            { key: "polls",     label: `Polls (${polls.length})`,       icon: "stats-chart" as const },
+            { key: "petitions", label: `Petitions (${petitions.length})`, icon: "pencil" as const },
+            { key: "events",    label: `Events (${events.length})`,      icon: "calendar" as const },
+            { key: "map",       label: "Map",                            icon: "map" as const },
+          ] as { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[]).map(t => (
+            <Pressable key={t.key} onPress={() => setTab(t.key)} style={[s.tab, tab === t.key && s.tabActive]}>
+              <Ionicons name={t.icon} size={11} color={tab === t.key ? "#fff" : "rgba(255,255,255,0.5)"} />
+              <Text style={[s.tabText, tab === t.key && s.tabTextActive]}>{t.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -358,14 +384,163 @@ export default function CommunityScreen() {
             );
           })}
 
+          {/* MAP TAB */}
+          {tab === "map" && (
+            mapLoading ? (
+              <View style={{ padding: 40, alignItems: "center" }}>
+                <ActivityIndicator color="#2563EB" size="large" />
+                <Text style={{ color: "#9CA3AF", marginTop: 12, fontSize: 13, fontFamily: "Inter_400Regular" }}>Loading district data...</Text>
+              </View>
+            ) : (
+              <>
+                {/* District banner */}
+                <View style={[s.card, { backgroundColor: "#1E3A5F", borderColor: "#2563EB44" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#2563EB22", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#3B82F655" }}>
+                      <Ionicons name="map" size={22} color="#60A5FA" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" }}>{user?.district || "Uttarakhand"} District</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                        {policeStations.length} police stations · {emergencyServices.length} emergency services
+                      </Text>
+                    </View>
+                    <View style={{ backgroundColor: "#22C55E22", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "#22C55E44" }}>
+                      <Text style={{ color: "#22C55E", fontSize: 11, fontFamily: "Inter_700Bold" }}>LIVE</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+                    {[
+                      { label: "Police", count: policeStations.length, color: "#3B82F6" },
+                      { label: "Hospitals", count: emergencyServices.filter((e: any) => e.type === "hospital").length, color: "#EF4444" },
+                      { label: "Fire", count: emergencyServices.filter((e: any) => e.type === "fire").length, color: "#F59E0B" },
+                      { label: "Ambulance", count: emergencyServices.filter((e: any) => e.type === "ambulance").length, color: "#22C55E" },
+                    ].map(stat => (
+                      <View key={stat.label} style={{ flex: 1, alignItems: "center", backgroundColor: stat.color + "15", borderRadius: 8, padding: 8 }}>
+                        <Text style={{ color: stat.color, fontSize: 16, fontFamily: "Inter_700Bold" }}>{stat.count}</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, fontFamily: "Inter_400Regular" }}>{stat.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Emergency numbers */}
+                <View style={s.card}>
+                  <Text style={{ color: "#111827", fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 10 }}>National Emergency Numbers</Text>
+                  {[
+                    { label: "Police",       number: "100",   icon: "shield" as const,   color: "#3B82F6" },
+                    { label: "Ambulance",    number: "108",   icon: "medkit" as const,   color: "#EF4444" },
+                    { label: "Fire Brigade", number: "101",   icon: "flame" as const,    color: "#F59E0B" },
+                    { label: "Women Helpline",number: "1090", icon: "woman" as const,    color: "#EC4899" },
+                    { label: "DM Helpline",  number: "1077",  icon: "call" as const,     color: "#22C55E" },
+                  ].map(svc => (
+                    <Pressable key={svc.label} onPress={() => Linking.openURL(`tel:${svc.number}`)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: "#F3F4F6" }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: svc.color + "15", alignItems: "center", justifyContent: "center" }}>
+                        <Ionicons name={svc.icon} size={16} color={svc.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: "#111827", fontSize: 13, fontFamily: "Inter_600SemiBold" }}>{svc.label}</Text>
+                      </View>
+                      <View style={{ backgroundColor: svc.color + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: svc.color + "33" }}>
+                        <Text style={{ color: svc.color, fontSize: 15, fontFamily: "Inter_700Bold" }}>{svc.number}</Text>
+                      </View>
+                      <Ionicons name="call" size={14} color={svc.color} />
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Police Stations */}
+                {policeStations.length > 0 && (
+                  <View style={s.card}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <Ionicons name="shield-half" size={16} color="#3B82F6" />
+                      <Text style={{ color: "#111827", fontSize: 14, fontFamily: "Inter_700Bold" }}>Police Stations</Text>
+                      <View style={{ backgroundColor: "#EFF6FF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ color: "#2563EB", fontSize: 10, fontFamily: "Inter_700Bold" }}>{policeStations.length}</Text>
+                      </View>
+                    </View>
+                    {policeStations.map((ps: any, i: number) => (
+                      <View key={ps.id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: "#F3F4F6", paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0 }}>
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" }}>
+                            <Ionicons name="shield" size={14} color="#3B82F6" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#111827", fontSize: 13, fontFamily: "Inter_600SemiBold" }}>{ps.name}</Text>
+                            <Text style={{ color: "#9CA3AF", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }} numberOfLines={1}>{ps.address}</Text>
+                          </View>
+                          <Pressable onPress={() => ps.phone && Linking.openURL(`tel:${ps.phone.replace(/[^0-9+]/g, "")}`)} style={{ backgroundColor: "#EFF6FF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#BFDBFE" }}>
+                            <Text style={{ color: "#2563EB", fontSize: 12, fontFamily: "Inter_700Bold" }}>Call</Text>
+                          </Pressable>
+                        </View>
+                        {ps.phone && (
+                          <Text style={{ color: "#6B7280", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4, marginLeft: 42 }}>{ps.phone}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Emergency Services */}
+                {emergencyServices.length > 0 && (
+                  <View style={s.card}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <Ionicons name="medkit" size={16} color="#EF4444" />
+                      <Text style={{ color: "#111827", fontSize: 14, fontFamily: "Inter_700Bold" }}>Emergency Services</Text>
+                      <View style={{ backgroundColor: "#FEF2F2", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ color: "#EF4444", fontSize: 10, fontFamily: "Inter_700Bold" }}>{emergencyServices.length}</Text>
+                      </View>
+                    </View>
+                    {emergencyServices.map((es: any, i: number) => {
+                      const esMeta: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
+                        hospital:  { icon: "medical",    color: "#EF4444" },
+                        fire:      { icon: "flame",      color: "#F59E0B" },
+                        ambulance: { icon: "car",        color: "#22C55E" },
+                        disaster:  { icon: "warning",    color: "#8B5CF6" },
+                      };
+                      const m = esMeta[es.type] || { icon: "alert-circle" as const, color: "#6B7280" };
+                      return (
+                        <View key={es.id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: "#F3F4F6", paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0 }}>
+                          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                            <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: m.color + "15", alignItems: "center", justifyContent: "center" }}>
+                              <Ionicons name={m.icon} size={14} color={m.color} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: "#111827", fontSize: 13, fontFamily: "Inter_600SemiBold" }}>{es.name}</Text>
+                              <Text style={{ color: "#9CA3AF", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }} numberOfLines={1}>{es.address || es.location}</Text>
+                            </View>
+                            {es.phone && (
+                              <Pressable onPress={() => Linking.openURL(`tel:${es.phone.replace(/[^0-9+]/g, "")}`)} style={{ backgroundColor: m.color + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: m.color + "33" }}>
+                                <Text style={{ color: m.color, fontSize: 12, fontFamily: "Inter_700Bold" }}>Call</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </>
+            )
+          )}
+
           {tab === "polls" && polls.length === 0 && (
-            <View style={s.empty}><Text style={{ fontSize: 40 }}>📊</Text><Text style={s.emptyTitle}>No polls yet</Text></View>
+            <View style={s.empty}>
+              <Ionicons name="stats-chart-outline" size={40} color="#9CA3AF" />
+              <Text style={s.emptyTitle}>No polls yet</Text>
+            </View>
           )}
           {tab === "petitions" && petitions.length === 0 && (
-            <View style={s.empty}><Text style={{ fontSize: 40 }}>✍️</Text><Text style={s.emptyTitle}>No petitions yet</Text></View>
+            <View style={s.empty}>
+              <Ionicons name="pencil-outline" size={40} color="#9CA3AF" />
+              <Text style={s.emptyTitle}>No petitions yet</Text>
+            </View>
           )}
           {tab === "events" && events.length === 0 && (
-            <View style={s.empty}><Text style={{ fontSize: 40 }}>📅</Text><Text style={s.emptyTitle}>No events yet</Text></View>
+            <View style={s.empty}>
+              <Ionicons name="calendar-outline" size={40} color="#9CA3AF" />
+              <Text style={s.emptyTitle}>No events yet</Text>
+            </View>
           )}
         </ScrollView>
       )}
@@ -512,11 +687,11 @@ const s = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 0 },
   headerTitle: { color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" },
   headerSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, marginBottom: 16 },
-  tabRow: { flexDirection: "row", gap: 4 },
-  tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 0 },
+  tabRow: { flexDirection: "row", gap: 2 },
+  tab: { flex: 1, alignItems: "center", paddingVertical: 9, borderRadius: 0, gap: 2 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: "#fff" },
-  tabText: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center" },
-  tabTextActive: { color: "#fff", fontFamily: "Inter_700Bold" },
+  tabText: { color: "rgba(255,255,255,0.55)", fontSize: 9, fontFamily: "Inter_500Medium", textAlign: "center" },
+  tabTextActive: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 9 },
 
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12 },

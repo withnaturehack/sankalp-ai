@@ -11,14 +11,14 @@ import { useApp, type Complaint } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 
 const CATS = [
-  { key: "pothole",     label: "Pothole",     icon: "🕳️", color: "#F59E0B", bg: "#FFFBEB" },
-  { key: "garbage",     label: "Garbage",     icon: "🗑️", color: "#EF4444", bg: "#FEF2F2" },
-  { key: "streetlight", label: "Streetlight", icon: "💡", color: "#F59E0B", bg: "#FFFBEB" },
-  { key: "water",       label: "Water",       icon: "💧", color: "#3B82F6", bg: "#EFF6FF" },
-  { key: "drain",       label: "Drain",       icon: "🌊", color: "#06B6D4", bg: "#F0FDFF" },
-  { key: "electricity", label: "Electricity", icon: "⚡", color: "#8B5CF6", bg: "#F5F3FF" },
-  { key: "tree",        label: "Tree",        icon: "🌳", color: "#00A651", bg: "#F0FFF4" },
-  { key: "other",       label: "Other",       icon: "📍", color: "#6B7280", bg: "#F9FAFB" },
+  { key: "pothole",     label: "Pothole",     icon: "alert-circle"        as const, color: "#F59E0B", bg: "#FFFBEB" },
+  { key: "garbage",     label: "Garbage",     icon: "trash"               as const, color: "#EF4444", bg: "#FEF2F2" },
+  { key: "streetlight", label: "Streetlight", icon: "bulb"                as const, color: "#F59E0B", bg: "#FFFBEB" },
+  { key: "water",       label: "Water",       icon: "water"               as const, color: "#3B82F6", bg: "#EFF6FF" },
+  { key: "drain",       label: "Drain",       icon: "git-network"         as const, color: "#06B6D4", bg: "#F0FDFF" },
+  { key: "electricity", label: "Electricity", icon: "flash"               as const, color: "#8B5CF6", bg: "#F5F3FF" },
+  { key: "tree",        label: "Tree",        icon: "leaf"                as const, color: "#00A651", bg: "#F0FFF4" },
+  { key: "other",       label: "Other",       icon: "ellipsis-horizontal" as const, color: "#6B7280", bg: "#F9FAFB" },
 ];
 
 const PRIORITIES = [
@@ -121,7 +121,7 @@ function ComplaintCard({ item, onPress, onUpvote, userId, index = 0 }: {
         <View style={{ flex: 1, padding: 14 }}>
           <View style={cs.cardTop}>
             <View style={[cs.catIconWrap, { backgroundColor: col.bg }]}>
-              <Text style={{ fontSize: 14 }}>{col.icon}</Text>
+              <Ionicons name={col.icon} size={16} color={col.color} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={cs.cardTicket}>{item.ticketId}</Text>
@@ -439,7 +439,7 @@ export default function ComplaintsScreen() {
             const active = filterCat === c.key;
             return (
               <Pressable key={c.key} onPress={() => setFilterCat(c.key)} style={[cs.catPill, active && { backgroundColor: c.bg, borderColor: c.color }]}>
-                <Text style={{ fontSize: 11 }}>{c.icon}</Text>
+                <Ionicons name={c.icon} size={12} color={active ? c.color : "#9CA3AF"} />
                 <Text style={[cs.catPillText, active && { color: c.color, fontFamily: "Inter_700Bold" }]}>{c.label}</Text>
               </Pressable>
             );
@@ -460,7 +460,9 @@ export default function ComplaintsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={cs.empty}>
-            <Text style={{ fontSize: 48 }}>📭</Text>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="document-text-outline" size={36} color="#9CA3AF" />
+            </View>
             <Text style={cs.emptyTitle}>No complaints found</Text>
             <Text style={cs.emptySub}>Try adjusting your filters or tap + to file a new report</Text>
           </View>
@@ -491,7 +493,9 @@ export default function ComplaintsScreen() {
                 return (
                   <>
                     <LinearGradient colors={[col.color + "22", col.bg]} style={cs.detailHero}>
-                      <Text style={{ fontSize: 48 }}>{col.icon}</Text>
+                      <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: col.bg, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: col.color + "44" }}>
+                        <Ionicons name={col.icon} size={28} color={col.color} />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={cs.detailTicket}>{selectedC.ticketId}</Text>
                         <Text style={cs.detailCat}>{col.label} · {selectedC.ward}</Text>
@@ -578,7 +582,11 @@ export default function ComplaintsScreen() {
                       {selectedC.rating && (
                         <View style={cs.ratingBox}>
                           <Text style={cs.ratingLabel}>Citizen Rating</Text>
-                          <Text style={{ fontSize: 20 }}>{"⭐".repeat(selectedC.rating)}</Text>
+                          <View style={{ flexDirection: "row", gap: 3 }}>
+                            {[1,2,3,4,5].map(n => (
+                              <Ionicons key={n} name={n <= selectedC.rating! ? "star" : "star-outline"} size={18} color="#F59E0B" />
+                            ))}
+                          </View>
                           {selectedC.feedback && <Text style={cs.feedbackText}>"{selectedC.feedback}"</Text>}
                         </View>
                       )}
@@ -658,7 +666,7 @@ export default function ComplaintsScreen() {
                 return (
                   <View key={i} style={{ flexDirection: isOfficer ? "row" : "row-reverse", gap: 8, marginBottom: 12, alignItems: "flex-end" }}>
                     <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isOfficer ? "#EFF6FF" : "#F0FFF4", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 14 }}>{isOfficer ? "👮" : "👤"}</Text>
+                      <Ionicons name={isOfficer ? "shield-half" : "person"} size={14} color={isOfficer ? "#3B82F6" : "#00A651"} />
                     </View>
                     <View style={{ maxWidth: "75%" }}>
                       <View style={{ backgroundColor: isOfficer ? "#EFF6FF" : "#E64A19", borderRadius: 12, padding: 10, borderBottomLeftRadius: isOfficer ? 4 : 12, borderBottomRightRadius: isOfficer ? 12 : 4 }}>

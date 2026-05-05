@@ -55,6 +55,22 @@ export interface Complaint {
   feedback?: string;
   rejectedBy?: string[];
   reopened?: boolean;
+  department?: string;
+}
+
+// Department routing: AI maps complaint category → responsible government dept
+export function assignDepartment(category: string): string {
+  const map: Record<string, string> = {
+    electricity: "UPCL (Uttarakhand Power Corporation Ltd)",
+    water:       "Jal Sansthan (Uttarakhand Jal Sansthan)",
+    drain:       "ULB (Urban Local Bodies / Nagar Palika)",
+    garbage:     "ULB (Urban Local Bodies / Nagar Palika)",
+    streetlight: "UPCL (Uttarakhand Power Corporation Ltd)",
+    pothole:     "PWD (Public Works Department)",
+    tree:        "Forest Department / DM Office",
+    other:       "DM Office (District Magistrate)",
+  };
+  return map[category] || "DM Office (District Magistrate)";
 }
 
 export interface SOSAlert {
@@ -669,6 +685,7 @@ class AppStorage {
         district: ward.district,
         priority,
         status,
+        department: assignDepartment(category),
         submittedAt: hoursAgo(hoursBack),
         resolvedAt: hasProof ? hoursAgo(Math.max(1, hoursBack - rndInt(2, 48))) : undefined,
         submittedBy: isDemo ? "Demo Citizen" : WORKER_NAMES[rndInt(0, WORKER_NAMES.length - 1)],
@@ -927,6 +944,7 @@ class AppStorage {
       upvotedBy: [],
       aiScore: rndInt(62, 99),
       aiConfidence: rndInt(70, 98),
+      department: data.department || assignDepartment(data.category),
     };
     this.complaints.unshift(complaint);
     const user = this.users.get(userId);

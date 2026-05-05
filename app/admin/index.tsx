@@ -16,6 +16,7 @@ const ADMIN_TABS = [
   { key: "command",       label: "War Room",     icon: "radio" as const,            route: null },
   { key: "reports",       label: "Reports",      icon: "document-text" as const,    route: "/admin/reports" as const },
   { key: "alerts",        label: "Alerts",       icon: "warning" as const,          route: "/admin/alerts" as const },
+  { key: "departments",   label: "Departments",  icon: "business" as const,         route: "/admin/departments" as const },
   { key: "workers",       label: "Workers",      icon: "people" as const,           route: "/admin/workers" as const },
   { key: "announcements", label: "Announce",     icon: "megaphone" as const,        route: "/admin/announcements" as const },
   { key: "audit",         label: "Audit",        icon: "git-network" as const,      route: "/admin/audit" as const },

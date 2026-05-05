@@ -103,6 +103,14 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
               <Text style={styles.descText}>{complaint.description}</Text>
             </View>
 
+            {/* Department badge */}
+            {complaint.department && (
+              <View style={[styles.chip, { backgroundColor: "#FF993322", borderColor: "#FF993344", marginBottom: 12 }]}>
+                <Ionicons name="business" size={12} color="#FF9933" />
+                <Text style={[styles.chipText, { color: "#FF9933" }]}>Routed → {complaint.department.split(" (")[0]}</Text>
+              </View>
+            )}
+
             {/* Info rows */}
             {[
               { icon: "location" as const, color: Colors.textMuted, label: complaint.location },
@@ -267,6 +275,12 @@ export default function AdminReports() {
                 </View>
               </View>
               <Text style={styles.cardDesc} numberOfLines={2}>{c.description}</Text>
+              {c.department && (
+                <View style={[styles.chip, { backgroundColor: "#FF993318", borderColor: "#FF993333", marginTop: 6, alignSelf: "flex-start" }]}>
+                  <Ionicons name="business" size={9} color="#FF9933" />
+                  <Text style={[styles.chipText, { color: "#FF9933" }]}>{(c as any).department?.split(" (")[0] || "DM Office"}</Text>
+                </View>
+              )}
               <View style={styles.cardBottom}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flex: 1 }}>
                   <Ionicons name="location-outline" size={11} color={Colors.textMuted} />
