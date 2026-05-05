@@ -34,7 +34,7 @@ export function StatCard({ label, value, icon, color, bgColor, suffix = "" }: Pr
 
   const displayText = animVal.interpolate({
     inputRange: [0, Math.max(value, 1)],
-    outputRange: ["0", String(value)],
+    outputRange: [`0${suffix}`, `${value}${suffix}`],
   });
 
   return (
@@ -43,7 +43,7 @@ export function StatCard({ label, value, icon, color, bgColor, suffix = "" }: Pr
         <Feather name={icon as any} size={18} color={color} />
       </View>
       <Animated.Text style={[styles.value, { color }]}>
-        {displayText}{suffix}
+        {displayText}
       </Animated.Text>
       <Text style={styles.label}>{label}</Text>
     </Animated.View>

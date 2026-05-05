@@ -9,7 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
-import DelhiMap, { type MapFilter } from "@/components/DelhiMap";
+import UttarakhandMap, { type MapFilter } from "@/components/UttarakhandMap";
 import type { GeoPoint } from "@/context/AppContext";
 
 const FILTERS: { key: MapFilter; label: string; icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }[] = [
@@ -131,7 +131,7 @@ export default function MapScreen() {
 
       {/* Map */}
       <View style={ms.mapWrap}>
-        <DelhiMap
+        <UttarakhandMap
           complaints={complaints}
           sosAlerts={sosAlerts}
           workers={workers}

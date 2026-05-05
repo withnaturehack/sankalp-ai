@@ -271,6 +271,9 @@ function getUserDistrict(req: Request): string | undefined {
   return user.district;
 }
 
+// ── STRING PARAM HELPER (Express 5 types: req.params values are string | string[]) ──
+const sp = (v: string | string[]): string => Array.isArray(v) ? (v[0] ?? "") : v;
+
 // ── RATE LIMITING ─────────────────────────────────────────────────────────────
 const RL_MAP = new Map<string, { count: number; resetAt: number }>();
 function rateLimit(maxReq: number, windowMs: number) {
@@ -404,7 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/complaints/:id/upvote", requireAuth, (req, res) => {
     const user = (req as any).user;
-    const complaint = storage.upvoteComplaint(req.params.id, user.id);
+    const complaint = storage.upvoteComplaint(sp(req.params.id), user.id);
     if (!complaint) return res.status(404).json({ message: "Not found" });
     res.json(complaint);
   });
@@ -412,14 +415,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/complaints/:id/resolve", requireAuth, (req, res) => {
     const user = (req as any).user;
     const { rating, feedback, afterPhoto } = req.body;
-    const complaint = storage.resolveComplaint(req.params.id, rating, feedback, afterPhoto, user.id);
+    const complaint = storage.resolveComplaint(sp(req.params.id), rating, feedback, afterPhoto, user.id);
     if (!complaint) return res.status(404).json({ message: "Not found" });
     res.json(complaint);
   });
 
   app.put("/api/complaints/:id/reject", requireAuth, (req, res) => {
     const user = (req as any).user;
-    const complaint = storage.rejectResolution(req.params.id, user.id);
+    const complaint = storage.rejectResolution(sp(req.params.id), user.id);
     if (!complaint) return res.status(404).json({ message: "Not found" });
     res.json(complaint);
   });
@@ -451,13 +454,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (typeof lat !== "number" || typeof lng !== "number") {
       return res.status(400).json({ message: "lat and lng (numbers) required" });
     }
-    const alert = storage.updateSosLocation(req.params.id, { lat, lng });
+    const alert = storage.updateSosLocation(sp(req.params.id), { lat, lng });
     if (!alert) return res.status(404).json({ message: "SOS alert not found" });
     res.json(alert);
   });
 
   app.put("/api/sos/:id/resolve", requireAdmin, (req, res) => {
-    const alert = storage.resolveSos(req.params.id);
+    const alert = storage.resolveSos(sp(req.params.id));
     if (!alert) return res.status(404).json({ message: "Not found" });
     res.json(alert);
   });
@@ -574,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/departments/:name/complaints", requireAuth, (req, res) => {
     const user = (req as any).user;
     const district = user.role === "super_admin" ? undefined : user.district;
-    const complaints = storage.getComplaints(district).filter(c => (c.department || "DM Office (District Magistrate)") === decodeURIComponent(req.params.name));
+    const complaints = storage.getComplaints(district).filter(c => (c.department || "DM Office (District Magistrate)") === decodeURIComponent(sp(req.params.name)));
     res.json(complaints);
   });
 
@@ -662,7 +665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/announcements/:id", requireAdmin, (req, res) => {
-    const ok = storage.deleteAnnouncement(req.params.id);
+    const ok = storage.deleteAnnouncement(sp(req.params.id));
     if (!ok) return res.status(404).json({ message: "Not found" });
     res.json({ success: true });
   });
@@ -702,7 +705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = (req as any).user;
     const { optionIndex } = req.body;
     if (optionIndex === undefined || optionIndex === null) return res.status(400).json({ message: "optionIndex required" });
-    const poll = storage.votePoll(req.params.id, optionIndex, user.id);
+    const poll = storage.votePoll(sp(req.params.id), optionIndex, user.id);
     if (!poll) return res.status(404).json({ message: "Poll not found or closed" });
     res.json(poll);
   });
@@ -724,7 +727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/petitions/:id/sign", requireAuth, (req, res) => {
     const user = (req as any).user;
-    const petition = storage.signPetition(req.params.id, user.id);
+    const petition = storage.signPetition(sp(req.params.id), user.id);
     if (!petition) return res.status(404).json({ message: "Petition not found or closed" });
     res.json(petition);
   });
@@ -750,7 +753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/rti/:id/respond", requireAdmin, (req, res) => {
     const { response } = req.body;
     if (!response) return res.status(400).json({ message: "response required" });
-    const rti = storage.respondRTI(req.params.id, response);
+    const rti = storage.respondRTI(sp(req.params.id), response);
     if (!rti) return res.status(404).json({ message: "RTI not found" });
     res.json(rti);
   });
@@ -772,14 +775,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/events/:id/rsvp", requireAuth, (req, res) => {
     const user = (req as any).user;
-    const event = storage.rsvpEvent(req.params.id, user.id);
+    const event = storage.rsvpEvent(sp(req.params.id), user.id);
     if (!event) return res.status(404).json({ message: "Event not found" });
     res.json(event);
   });
 
   // ── COMPLAINT CHAT ────────────────────────────────────────────────────
   app.get("/api/complaints/:id/chat", requireAuth, (req, res) => {
-    res.json(storage.getChatMessages(req.params.id));
+    res.json(storage.getChatMessages(sp(req.params.id)));
   });
 
   app.post("/api/complaints/:id/chat", requireAuth, (req, res) => {
@@ -787,7 +790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { message } = req.body;
     if (!message) return res.status(400).json({ message: "message required" });
     const role: "citizen" | "officer" = (user.role === "admin" || user.role === "super_admin") ? "officer" : "citizen";
-    const msg = storage.addChatMessage(req.params.id, message, user.name, role);
+    const msg = storage.addChatMessage(sp(req.params.id), message, user.name, role);
     res.status(201).json(msg);
   });
 
@@ -801,11 +804,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── AUDIT LOGS ────────────────────────────────────────────────────────
   app.get("/api/audit", requireAdmin, (req, res) => {
     const { complaintId } = req.query;
-    res.json(storage.getAuditLogs(complaintId as string | undefined));
+    res.json(storage.getAuditLogs(typeof complaintId === "string" ? complaintId : undefined));
   });
 
   app.get("/api/complaints/:id/audit", requireAuth, (req, res) => {
-    res.json(storage.getAuditLogs(req.params.id));
+    res.json(storage.getAuditLogs(sp(req.params.id)));
   });
 
   // ── EMERGENCY SERVICES ────────────────────────────────────────────────

@@ -30,7 +30,7 @@ const PRIORITIES = ["normal", "important", "urgent"] as const;
 function PostModal({ visible, onClose, onPost }: {
   visible: boolean;
   onClose: () => void;
-  onPost: (data: Partial<Announcement>) => Promise<void>;
+  onPost: (data: Partial<Announcement>) => Promise<any>;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");

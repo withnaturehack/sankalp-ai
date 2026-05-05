@@ -35,13 +35,13 @@ const DEMO_NOTIFICATIONS: AppNotification[] = [
   {
     id: genId(), type: "achievement",
     title: "Badge Unlocked — Active Citizen",
-    body: "You've earned 50+ civic points. Keep contributing to make Delhi better!",
+    body: "You've earned 50+ civic points. Keep contributing to make Uttarakhand better!",
     timestamp: minsAgo(5), read: false,
   },
   {
     id: genId(), type: "complaint_update",
     title: "Complaint Resolved",
-    body: "Your pothole report at Connaught Place has been marked resolved by MCD.",
+    body: "Your pothole report at Rajpur Road has been marked resolved by Nagar Nigam.",
     timestamp: minsAgo(35), read: false,
   },
   {
@@ -53,19 +53,19 @@ const DEMO_NOTIFICATIONS: AppNotification[] = [
   {
     id: genId(), type: "sos_alert",
     title: "SOS Alert Resolved Nearby",
-    body: "A women safety alert in Laxmi Nagar has been responded to and resolved.",
+    body: "A women safety alert near Paltan Bazaar, Dehradun has been responded to and resolved.",
     timestamp: minsAgo(180), read: true,
   },
   {
     id: genId(), type: "system",
     title: "Welcome to SANKALP AI",
-    body: "Delhi's civic nervous system is ready. Report issues, track progress, stay safe.",
+    body: "Uttarakhand's civic nervous system is ready. Report issues, track progress, stay safe.",
     timestamp: minsAgo(360), read: true,
   },
   {
     id: genId(), type: "announcement",
-    title: "Water Supply Disruption — Rohini",
-    body: "Water supply disrupted in Rohini Sectors 4–9 from 10 PM to 6 AM. Tankers deployed.",
+    title: "Water Supply Disruption — Haridwar",
+    body: "Water supply disrupted in Haridwar Sectors 4–9 from 10 PM to 6 AM. Tankers deployed.",
     timestamp: minsAgo(480), read: true,
   },
 ];

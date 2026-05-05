@@ -26,6 +26,45 @@ function makeApiCall(token: string | null) {
 
 export interface GeoPoint { lat: number; lng: number; }
 
+export type Priority = "P1" | "P2" | "P3" | "P4";
+export type ComplaintStatus = "pending" | "in_progress" | "resolved" | "closed";
+
+export const CATEGORY_META: Record<string, { icon: string; color: string; label: string }> = {
+  pothole:     { icon: "alert-circle",    color: "#F59E0B", label: "Pothole" },
+  garbage:     { icon: "trash-2",         color: "#22C55E", label: "Garbage" },
+  streetlight: { icon: "sun",             color: "#FBBF24", label: "Streetlight" },
+  water:       { icon: "droplet",         color: "#3B82F6", label: "Water Issue" },
+  drain:       { icon: "git-merge",       color: "#8B5CF6", label: "Drain/Sewer" },
+  electricity: { icon: "zap",             color: "#EF4444", label: "Electricity" },
+  tree:        { icon: "feather",         color: "#00A651", label: "Tree / Park" },
+  other:       { icon: "more-horizontal", color: "#6B7280", label: "Other" },
+};
+
+export const PRIORITY_META: Record<Priority, { color: string; bg: string; label: string }> = {
+  P1: { color: "#EF4444", bg: "#FEF2F2", label: "Critical — P1" },
+  P2: { color: "#F59E0B", bg: "#FFFBEB", label: "High — P2" },
+  P3: { color: "#3B82F6", bg: "#EFF6FF", label: "Medium — P3" },
+  P4: { color: "#6B7280", bg: "#F9FAFB", label: "Low — P4" },
+};
+
+export const STATUS_META: Record<ComplaintStatus, { color: string; bg: string; label: string }> = {
+  pending:     { color: "#F59E0B", bg: "#FFFBEB", label: "Pending" },
+  in_progress: { color: "#3B82F6", bg: "#EFF6FF", label: "In Progress" },
+  resolved:    { color: "#22C55E", bg: "#F0FDF4", label: "Resolved" },
+  closed:      { color: "#6B7280", bg: "#F9FAFB", label: "Closed" },
+};
+
+export const SOS_META: Record<string, { icon: string; color: string; label: string }> = {
+  gas_leak:        { icon: "wind",           color: "#F59E0B", label: "Gas Leak" },
+  water_burst:     { icon: "droplet",        color: "#3B82F6", label: "Water Burst" },
+  electric_hazard: { icon: "zap",            color: "#EF4444", label: "Electric Hazard" },
+  fire_risk:       { icon: "alert-triangle", color: "#EF4444", label: "Fire Risk" },
+  road_accident:   { icon: "alert-triangle", color: "#F59E0B", label: "Road Accident" },
+  women_safety:    { icon: "shield",         color: "#8B5CF6", label: "Women Safety" },
+  medical:         { icon: "heart",          color: "#22C55E", label: "Medical Emergency" },
+  infrastructure:  { icon: "tool",           color: "#6B7280", label: "Infrastructure" },
+};
+
 export interface Complaint {
   id: string;
   ticketId: string;

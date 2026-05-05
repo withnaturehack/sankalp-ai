@@ -171,7 +171,7 @@ function CivicMap({ wards }: { wards: any[] }) {
             return (
               <View
                 key={ward.id}
-                style={[map.wardDot, { left: pos.x, top: pos.y, backgroundColor: color + "40", borderColor: color }]}
+                style={[map.wardDot, { left: pos.x as any, top: pos.y as any, backgroundColor: color + "40", borderColor: color }]}
               >
                 <View style={[map.dotCenter, { backgroundColor: color }]} />
                 <Text style={[map.dotLabel, { color }]} numberOfLines={1}>

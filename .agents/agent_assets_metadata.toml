@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "O-iBFbQOlQlUJQY_qO-Tg"
+uri = "file://EXPO_GO_DEPLOYMENT.md"
+type = "text"
+title = "SANKALP AI — Expo Go Deployment Guide"
