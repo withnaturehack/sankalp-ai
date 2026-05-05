@@ -10,6 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useApp, type Complaint } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { getApiUrl } from "@/lib/query-client";
 
 const ADMIN_TABS = [
   { key: "command",       label: "War Room",     icon: "radio" as const,          route: null },
@@ -84,7 +85,6 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
       <Pressable style={styles.modalOverlay} onPress={onClose}>
         <Pressable style={styles.detailCard} onPress={e => e.stopPropagation?.()}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Header */}
             <View style={styles.detailHeader}>
               <View style={[styles.detailCatIcon, { backgroundColor: catColor + "22" }]}>
                 <Ionicons name={catIcon} size={22} color={catColor} />
@@ -98,7 +98,6 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
               </Pressable>
             </View>
 
-            {/* Priority + Status row */}
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
               <View style={[styles.chip, { backgroundColor: priColor + "22", borderColor: priColor + "44" }]}>
                 <Ionicons name="alert-circle" size={12} color={priColor} />
@@ -116,19 +115,16 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
               )}
             </View>
 
-            {/* Description */}
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionLabel}>Description</Text>
               <Text style={styles.detailDesc}>{complaint.description}</Text>
             </View>
 
-            {/* Location */}
             <View style={styles.detailInfoRow}>
               <Ionicons name="location" size={14} color={Colors.textMuted} />
               <Text style={styles.detailInfoText}>{complaint.location}</Text>
             </View>
 
-            {/* Submitted */}
             <View style={styles.detailInfoRow}>
               <Ionicons name="person" size={14} color={Colors.textMuted} />
               <Text style={styles.detailInfoText}>{complaint.submittedBy || "Anonymous"}</Text>
@@ -142,7 +138,6 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
               </View>
             )}
 
-            {/* Stats grid */}
             <View style={styles.detailStatsGrid}>
               <View style={styles.detailStat}>
                 <Ionicons name="chevron-up" size={16} color={Colors.green} />
@@ -168,7 +163,6 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
               )}
             </View>
 
-            {/* Proof photos */}
             {complaint.hasProof && (
               <View style={styles.proofRow}>
                 <View style={styles.proofImg}>
@@ -190,7 +184,6 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
               </View>
             )}
 
-            {/* Admin actions */}
             {(complaint.status === "pending" || complaint.status === "in_progress") && (
               <View style={styles.detailActions}>
                 <Pressable onPress={() => onResolve(complaint.id)} style={styles.resolveBtn}>
@@ -217,10 +210,450 @@ function ComplaintDetailModal({ complaint, onClose, onResolve, onReject }: {
   );
 }
 
+// ── SUPER ADMIN VIEW ──────────────────────────────────────────────────────────
+function SuperAdminView({ user, token, logout }: { user: any; token: string | null; logout: () => void }) {
+  const insets = useSafeAreaInsets();
+  const { sosAlerts, complaints, broadcastEmergency, refresh, isLoading } = useApp();
+
+  const [districtStats, setDistrictStats] = useState<any[]>([]);
+  const [districtLoading, setDistrictLoading] = useState(true);
+  const [selectedDistrict, setSelectedDistrict] = useState<any | null>(null);
+  const [assignTask, setAssignTask] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+
+  const liveAnim = useRef(new Animated.Value(0)).current;
+  const headerScale = useRef(new Animated.Value(0)).current;
+
+  const activeSos = sosAlerts.filter(s => s.status === "active");
+  const womenSosList = activeSos.filter(a => a.category === "women_safety");
+  const totalComplaints = complaints.length;
+  const totalResolved = complaints.filter(c => c.status === "resolved" || c.status === "closed").length;
+  const totalPending = complaints.filter(c => c.status === "pending").length;
+
+  const fetchDistricts = useCallback(async () => {
+    if (!token) return;
+    setDistrictLoading(true);
+    try {
+      const base = getApiUrl();
+      const r = await fetch(`${base}api/superadmin/districts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (Array.isArray(d)) setDistrictStats(d);
+      }
+    } catch {}
+    setDistrictLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    fetchDistricts();
+    Animated.spring(headerScale, { toValue: 1, friction: 6, useNativeDriver: false }).start();
+    const anim = Animated.loop(Animated.sequence([
+      Animated.timing(liveAnim, { toValue: 1, duration: 800, useNativeDriver: false }),
+      Animated.timing(liveAnim, { toValue: 0, duration: 800, useNativeDriver: false }),
+    ]));
+    anim.start();
+    return () => anim.stop();
+  }, [fetchDistricts]);
+
+  const handleAssignTask = async () => {
+    if (!assignTask.trim() || !selectedDistrict) return;
+    setAssignLoading(true);
+    try {
+      const base = getApiUrl();
+      const r = await fetch(`${base}api/superadmin/assign-task`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ district: selectedDistrict.district, task: assignTask }),
+      });
+      if (r.ok) {
+        setAssignTask("");
+        setSelectedDistrict(null);
+        Alert.alert("Task Assigned ✓", `Directive sent to ${selectedDistrict.district} District Magistrate via SANKALP AI`);
+      } else {
+        Alert.alert("Error", "Failed to assign task");
+      }
+    } catch {
+      Alert.alert("Error", "Network error — please try again");
+    }
+    setAssignLoading(false);
+  };
+
+  const handleBroadcast = async () => {
+    setBroadcastLoading(true);
+    try {
+      await broadcastEmergency(broadcastMsg || "STATE-WIDE EMERGENCY: All 13 districts on high alert. Follow official instructions.");
+      setBroadcastMsg("");
+      setShowBroadcast(false);
+      Alert.alert("Broadcast Sent ✓", "State-wide emergency alert pushed to all 13 districts");
+    } catch {
+      Alert.alert("Error", "Broadcast failed");
+    }
+    setBroadcastLoading(false);
+  };
+
+  return (
+    <View style={[sas.root, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
+      {/* Header */}
+      <Animated.View style={[sas.header, { transform: [{ scale: headerScale }] }]}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={sas.title}>⚡ State Command</Text>
+            <Animated.View style={{ opacity: liveAnim, backgroundColor: "#F59E0B22", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <Text style={{ color: "#F59E0B", fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1 }}>LIVE</Text>
+            </Animated.View>
+          </View>
+          <Text style={sas.sub}>Super Admin · {user?.name} · All 13 Districts</Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable onPress={() => setShowBroadcast(true)} style={sas.broadcastBtn}>
+            <Ionicons name="radio-outline" size={16} color="#EF4444" />
+            <Text style={sas.broadcastBtnText}>Alert</Text>
+          </Pressable>
+          <Pressable onPress={logout} style={sas.logoutBtn}>
+            <Feather name="log-out" size={17} color={Colors.textMuted} />
+          </Pressable>
+        </View>
+      </Animated.View>
+
+      {/* Navigation Tabs */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexShrink: 0 }} contentContainerStyle={sas.navRow}>
+        {ADMIN_TABS.map(tab => (
+          <Pressable key={tab.key} onPress={() => tab.route && router.push(tab.route)}
+            style={[sas.navTab, tab.key === "command" && sas.navTabActive]}>
+            <Ionicons name={tab.icon} size={14} color={tab.key === "command" ? "#F59E0B" : Colors.textMuted} />
+            <Text style={[sas.navTabText, tab.key === "command" && { color: "#F59E0B" }]}>{tab.label}</Text>
+            {tab.key === "alerts" && activeSos.length > 0 && (
+              <View style={sas.badge}><Text style={sas.badgeText}>{activeSos.length}</Text></View>
+            )}
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={isLoading || districtLoading} onRefresh={() => { refresh(); fetchDistricts(); }} tintColor="#F59E0B" />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 40 : insets.bottom + 24 }}
+      >
+        {/* State-Level KPIs */}
+        <View style={sas.kpiRow}>
+          {[
+            { val: totalComplaints, label: "Reports", color: "#F59E0B", icon: "list-outline" as const },
+            { val: totalResolved, label: "Resolved", color: "#22C55E", icon: "checkmark-circle" as const },
+            { val: totalPending, label: "Pending", color: "#EF4444", icon: "time-outline" as const },
+            { val: activeSos.length, label: "Active SOS", color: "#8B5CF6", icon: "warning" as const },
+          ].map((k, i) => (
+            <Pressable key={i} onPress={() => k.label === "Active SOS" ? router.push("/admin/alerts") : router.push("/admin/reports")} style={sas.kpiCard}>
+              <Ionicons name={k.icon} size={16} color={k.color} />
+              <Text style={[sas.kpiVal, { color: k.color }]}>{k.val}</Text>
+              <Text style={sas.kpiLabel}>{k.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Women Safety Priority Alert */}
+        {womenSosList.length > 0 && (
+          <Pressable onPress={() => router.push("/admin/alerts")} style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 14, overflow: "hidden" }}>
+            <LinearGradient colors={["#4C1D95", "#7C3AED"]} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 20 }}>🛡️</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" }}>
+                  {womenSosList.length} WOMEN SAFETY SOS — STATE EMERGENCY
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                  Police notified · Live location streaming active
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
+            </LinearGradient>
+          </Pressable>
+        )}
+
+        {/* Active SOS Banner */}
+        {activeSos.length > 0 && womenSosList.length === 0 && (
+          <Pressable onPress={() => router.push("/admin/alerts")} style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 14, overflow: "hidden" }}>
+            <LinearGradient colors={["#7F1D1D", "#B91C1C"]} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
+              <Ionicons name="warning" size={20} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" }}>
+                  {activeSos.length} ACTIVE SOS ACROSS UTTARAKHAND
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }}>Tap to view and respond</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
+            </LinearGradient>
+          </Pressable>
+        )}
+
+        {/* District Overview Header */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View>
+            <Text style={{ color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" }}>District Overview</Text>
+            <Text style={{ color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+              Tap any district to view details & assign work
+            </Text>
+          </View>
+          <Pressable onPress={() => { refresh(); fetchDistricts(); }} style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: Colors.bgCard, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+            <Ionicons name="refresh" size={13} color={Colors.textMuted} />
+            <Text style={{ color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_500Medium" }}>Refresh</Text>
+          </Pressable>
+        </View>
+
+        {districtLoading && districtStats.length === 0 ? (
+          <View style={{ padding: 40, alignItems: "center" }}>
+            <ActivityIndicator color="#F59E0B" size="large" />
+            <Text style={{ color: Colors.textMuted, marginTop: 10, fontSize: 13, fontFamily: "Inter_400Regular" }}>
+              Loading all 13 districts…
+            </Text>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 16, gap: 8 }}>
+            {districtStats.map((d, i) => {
+              const total = d.total || d.totalComplaints || 0;
+              const resolved = d.resolved || d.resolvedComplaints || 0;
+              const pending = d.pending || d.pendingComplaints || 0;
+              const health = d.avgHealthScore || d.avgHealth || 0;
+              const resRate = total > 0 ? Math.round(resolved / total * 100) : 0;
+              const healthColor = health >= 70 ? "#22C55E" : health >= 50 ? "#F59E0B" : "#EF4444";
+              const distSosCount = activeSos.filter((s: any) => s.district === d.district).length;
+              const isTopPerformer = i < 3;
+              const hasCritical = (d.activeSos || 0) > 0 || distSosCount > 0;
+
+              return (
+                <Pressable key={d.district} onPress={() => setSelectedDistrict({ ...d, total, resolved, pending, health, distSosCount })}
+                  style={[sas.distCard, hasCritical && { borderColor: "#EF444444" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={[sas.rankBadge, isTopPerformer && { backgroundColor: "#F59E0B22", borderColor: "#F59E0B44" }]}>
+                        <Text style={[sas.rankText, isTopPerformer && { color: "#F59E0B" }]}>#{i + 1}</Text>
+                      </View>
+                      <View>
+                        <Text style={sas.distName}>{d.district}</Text>
+                        <Text style={sas.distMeta}>{d.wardCount || 0} wards</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {distSosCount > 0 && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#EF4444", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                          <Ionicons name="warning" size={10} color="#fff" />
+                          <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold" }}>{distSosCount} SOS</Text>
+                        </View>
+                      )}
+                      <View style={[sas.healthPill, { backgroundColor: healthColor + "22", borderColor: healthColor + "44" }]}>
+                        <Text style={[sas.healthText, { color: healthColor }]}>{health}%</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    {[
+                      { val: total, label: "Total", color: "#F59E0B" },
+                      { val: resolved, label: "Done", color: "#22C55E" },
+                      { val: pending, label: "Open", color: "#EF4444" },
+                      { val: `${resRate}%`, label: "Rate", color: "#06B6D4" },
+                    ].map(s => (
+                      <View key={s.label} style={sas.statChip}>
+                        <Text style={[sas.statChipVal, { color: s.color }]}>{s.val}</Text>
+                        <Text style={sas.statChipLabel}>{s.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Spacer */}
+        <View style={{ height: 20 }} />
+      </ScrollView>
+
+      {/* District Detail + Assign Work Modal */}
+      <Modal visible={!!selectedDistrict} transparent animationType="slide" onRequestClose={() => { setSelectedDistrict(null); setAssignTask(""); }}>
+        <Pressable style={sas.overlay} onPress={() => { setSelectedDistrict(null); setAssignTask(""); }}>
+          <Pressable style={sas.sheet} onPress={e => e.stopPropagation?.()}>
+            {selectedDistrict && (
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={{ alignItems: "center", marginBottom: 10 }}>
+                  <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: Colors.border }} />
+                </View>
+
+                {/* District Header */}
+                <LinearGradient colors={["#1A0D00", "#2D1A00"]} style={{ borderRadius: 14, padding: 16, marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#F59E0B22", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#F59E0B44" }}>
+                      <Text style={{ fontSize: 22 }}>🏛️</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#fff", fontSize: 18, fontFamily: "Inter_700Bold" }}>{selectedDistrict.district}</Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                        District Administration · Uttarakhand
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => { setSelectedDistrict(null); setAssignTask(""); }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.bg, alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name="close" size={16} color={Colors.textMuted} />
+                    </Pressable>
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {[
+                      { label: "Total", value: selectedDistrict.total, color: "#F59E0B" },
+                      { label: "Resolved", value: selectedDistrict.resolved, color: "#22C55E" },
+                      { label: "Pending", value: selectedDistrict.pending, color: "#EF4444" },
+                      { label: "Health", value: `${selectedDistrict.health || selectedDistrict.avgHealthScore || 0}%`, color: "#8B5CF6" },
+                    ].map(s => (
+                      <View key={s.label} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 10, padding: 10, alignItems: "center" }}>
+                        <Text style={{ color: s.color, fontSize: 16, fontFamily: "Inter_700Bold" }}>{s.value}</Text>
+                        <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular", marginTop: 2 }}>{s.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </LinearGradient>
+
+                {/* Active SOS for this district */}
+                {selectedDistrict.distSosCount > 0 && (
+                  <View style={{ backgroundColor: "#EF444411", borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: "#EF444433" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <Ionicons name="warning" size={14} color="#EF4444" />
+                      <Text style={{ color: "#EF4444", fontSize: 12, fontFamily: "Inter_700Bold" }}>
+                        {selectedDistrict.distSosCount} Active SOS in this district
+                      </Text>
+                    </View>
+                    {activeSos.filter((s: any) => s.district === selectedDistrict.district).slice(0, 3).map((a: any) => (
+                      <View key={a.id} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#EF4444" }} />
+                        <Text style={{ color: "#9CA3AF", fontSize: 11, fontFamily: "Inter_400Regular", flex: 1 }} numberOfLines={1}>
+                          {a.category.replace(/_/g, " ").toUpperCase()} — {a.location}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Assign Task Section */}
+                <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>
+                  Assign Task to District Admin
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: Colors.bg, borderRadius: 12, padding: 14, borderWidth: 1,
+                    borderColor: assignTask.trim() ? "#F59E0B44" : Colors.border, color: "#fff",
+                    fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 80, textAlignVertical: "top", marginBottom: 14,
+                  }}
+                  placeholder="Enter directive for this district magistrate…&#10;e.g. Prioritize pothole repairs on NH-58 before monsoon. Inspect Ward 3 drains."
+                  placeholderTextColor={Colors.textMuted}
+                  value={assignTask}
+                  onChangeText={setAssignTask}
+                  multiline
+                />
+
+                {/* Quick task templates */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    {[
+                      "Flood preparedness audit",
+                      "Pothole survey NH roads",
+                      "Street light inspection",
+                      "Garbage clearance drive",
+                      "Water supply audit",
+                    ].map(t => (
+                      <Pressable key={t} onPress={() => setAssignTask(t)}
+                        style={{ backgroundColor: Colors.bgCard, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+                        <Text style={{ color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_500Medium" }}>{t}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable onPress={() => { setSelectedDistrict(null); setAssignTask(""); }}
+                    style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: Colors.border }}>
+                    <Text style={{ color: Colors.textMuted, fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleAssignTask}
+                    disabled={!assignTask.trim() || assignLoading}
+                    style={[{ flex: 2, backgroundColor: "#F59E0B", borderRadius: 12, padding: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }, (!assignTask.trim() || assignLoading) && { opacity: 0.5 }]}
+                  >
+                    {assignLoading
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <><Ionicons name="send" size={16} color="#fff" /><Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" }}>Send Directive</Text></>}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* State-Wide Broadcast Modal */}
+      <Modal visible={showBroadcast} transparent animationType="slide" onRequestClose={() => setShowBroadcast(false)}>
+        <View style={sas.overlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowBroadcast(false)} />
+          <View style={sas.sheet}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#EF444422", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="radio-outline" size={24} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" }}>State Emergency Broadcast</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                  Alerts all 13 districts simultaneously
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowBroadcast(false)}>
+                <Ionicons name="close" size={22} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+            <TextInput
+              style={{ backgroundColor: Colors.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border, color: "#fff", fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 80, textAlignVertical: "top", marginVertical: 14 }}
+              placeholder="Emergency broadcast message for all districts…"
+              placeholderTextColor={Colors.textMuted}
+              value={broadcastMsg}
+              onChangeText={setBroadcastMsg}
+              multiline
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable onPress={() => setShowBroadcast(false)}
+                style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: Colors.border }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={handleBroadcast} disabled={broadcastLoading}
+                style={[{ flex: 2, backgroundColor: "#EF4444", borderRadius: 12, padding: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }, broadcastLoading && { opacity: 0.7 }]}>
+                {broadcastLoading
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><Ionicons name="warning" size={16} color="#fff" /><Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" }}>BROADCAST NOW</Text></>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+// ── ROLE ROUTER ────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
+  const { user, logout, isSuperAdmin, token } = useAuth();
+  if (isSuperAdmin) {
+    return <SuperAdminView user={user} token={token} logout={logout} />;
+  }
+  return <DistrictAdminDashboard />;
+}
+
+// ── DISTRICT ADMIN WAR ROOM ────────────────────────────────────────────────────
+function DistrictAdminDashboard() {
   const insets = useSafeAreaInsets();
   const { complaints, sosAlerts, riskZones, workers, isLoading, refresh, getStats, broadcastEmergency, resolveComplaint, rejectComplaint } = useApp();
   const { user, logout } = useAuth();
+
   const [emergencyMode, setEmergencyMode] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState("");
@@ -316,7 +749,7 @@ export default function AdminDashboard() {
               <Text style={{ color: "#EF4444", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1 }}>LIVE</Text>
             </Animated.View>
           </View>
-          <Text style={styles.headerSub}>SANKALP Admin · {user?.name}</Text>
+          <Text style={styles.headerSub}>SANKALP Admin · {user?.name} · {user?.district}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Pressable onPress={() => setShowEmergencyModal(true)} style={[styles.emergencyBtn, emergencyMode && { backgroundColor: "#EF4444" }]}>
@@ -372,12 +805,24 @@ export default function AdminDashboard() {
           <LinearGradient colors={["#7F1D1D", "#B91C1C", "#7F1D1D"]} style={styles.broadcastGrad}>
             <Ionicons name="radio-outline" size={20} color="#fff" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.broadcastTitle}>Broadcast City-Wide Emergency</Text>
-              <Text style={styles.broadcastSub}>Push alert to all 20 million citizen devices</Text>
+              <Text style={styles.broadcastTitle}>Broadcast District Emergency</Text>
+              <Text style={styles.broadcastSub}>Push alert to all citizens in {user?.district}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
           </LinearGradient>
         </Pressable>
+
+        {/* Stale complaints warning */}
+        {stalePendingComplaints.length > 0 && (
+          <Pressable onPress={() => router.push("/admin/reports")} style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 12, backgroundColor: "#F59E0B11", padding: 12, borderWidth: 1, borderColor: "#F59E0B33", flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Ionicons name="time" size={18} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#F59E0B", fontSize: 12, fontFamily: "Inter_700Bold" }}>{stalePendingComplaints.length} stale complaints (&gt;3 days)</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 }}>Requires immediate attention</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color="#F59E0B" />
+          </Pressable>
+        )}
 
         {/* WOMEN SAFETY SOS — URGENT BANNER */}
         {womenSafetyAlerts.length > 0 && (
@@ -400,7 +845,7 @@ export default function AdminDashboard() {
               {womenSafetyAlerts.slice(0, 1).map(a => (
                 <View key={a.id} style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10 }}>
                   <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
-                    👤 {a.triggeredBy || "Citizen"} · {a.district || "Unknown District"}
+                    👤 {a.triggeredBy || "Citizen"}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
                     <Ionicons name="location" size={11} color="#A78BFA" />
@@ -476,7 +921,7 @@ export default function AdminDashboard() {
           </View>
         </LinearGradient>
 
-        {/* Critical P1 Complaints — CLICKABLE */}
+        {/* Critical P1 Complaints */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="alert-circle" size={16} color="#EF4444" />
@@ -486,7 +931,7 @@ export default function AdminDashboard() {
           {criticalComplaints.length === 0 && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12 }}>
               <Ionicons name="checkmark-circle" size={16} color={Colors.green} />
-              <Text style={{ color: Colors.textMuted, fontSize: 13, fontFamily: "Inter_400Regular" }}>No critical complaints — city looks good</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 13, fontFamily: "Inter_400Regular" }}>No critical complaints — district looks good</Text>
             </View>
           )}
           {criticalComplaints.slice(0, 5).map(c => {
@@ -526,13 +971,13 @@ export default function AdminDashboard() {
           </View>
           {riskZones.slice(0, 5).map(rz => (
             <View key={rz.id} style={styles.riskRow}>
-              <View style={[styles.riskDot, { backgroundColor: RISK_COLORS[rz.type] }]} />
+              <View style={[styles.riskDot, { backgroundColor: (RISK_COLORS as any)[rz.type] || "#6B7280" }]} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.riskDesc}>{rz.description}</Text>
                 <Text style={styles.riskCount}>{rz.complaintCount} complaints · {rz.type}</Text>
               </View>
-              <View style={[styles.riskBadge, { backgroundColor: RISK_COLORS[rz.type] + "22" }]}>
-                <Text style={[styles.riskBadgeText, { color: RISK_COLORS[rz.type] }]}>{rz.severity}</Text>
+              <View style={[styles.riskBadge, { backgroundColor: ((RISK_COLORS as any)[rz.type] || "#6B7280") + "22" }]}>
+                <Text style={[styles.riskBadgeText, { color: (RISK_COLORS as any)[rz.type] || "#6B7280" }]}>{rz.severity}</Text>
               </View>
             </View>
           ))}
@@ -556,8 +1001,8 @@ export default function AdminDashboard() {
                 <Ionicons name="radio-outline" size={24} color="#EF4444" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>City Emergency Broadcast</Text>
-                <Text style={styles.modalSub}>Alerts all 20M citizens instantly</Text>
+                <Text style={styles.modalTitle}>District Emergency Broadcast</Text>
+                <Text style={styles.modalSub}>Alerts all citizens in {user?.district}</Text>
               </View>
               <Pressable onPress={() => setShowEmergencyModal(false)}>
                 <Ionicons name="close" size={22} color={Colors.textMuted} />
@@ -566,7 +1011,7 @@ export default function AdminDashboard() {
             <Text style={styles.broadcastMsgLabel}>Message (optional)</Text>
             <TextInput
               style={styles.broadcastMsgInput}
-              placeholder="CITY-WIDE EMERGENCY ALERT: Take immediate precautions..."
+              placeholder="DISTRICT-WIDE EMERGENCY ALERT: Take immediate precautions..."
               placeholderTextColor={Colors.textMuted}
               value={broadcastMsg}
               onChangeText={setBroadcastMsg}
@@ -590,11 +1035,45 @@ export default function AdminDashboard() {
   );
 }
 
+// ── SUPER ADMIN STYLES ─────────────────────────────────────────────────────────
+const sas = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },
+  title: { color: "#fff", fontSize: 19, fontFamily: "Inter_700Bold" },
+  sub: { color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  broadcastBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: "#EF444444", backgroundColor: "#EF444411" },
+  broadcastBtnText: { color: "#EF4444", fontSize: 11, fontFamily: "Inter_700Bold" },
+  logoutBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
+  navRow: { paddingHorizontal: 16, paddingBottom: 12, gap: 6 },
+  navTab: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border },
+  navTabActive: { backgroundColor: "#F59E0B11", borderColor: "#F59E0B44" },
+  navTabText: { color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  badge: { backgroundColor: "#EF4444", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
+  badgeText: { color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold" },
+  kpiRow: { flexDirection: "row", paddingHorizontal: 16, gap: 8, marginBottom: 12 },
+  kpiCard: { flex: 1, backgroundColor: Colors.bgCard, borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: Colors.border, gap: 4 },
+  kpiVal: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  kpiLabel: { color: Colors.textMuted, fontSize: 8, fontFamily: "Inter_400Regular", textAlign: "center" },
+  distCard: { backgroundColor: Colors.bgCard, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.border },
+  rankBadge: { width: 30, height: 30, borderRadius: 8, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
+  rankText: { color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_700Bold" },
+  distName: { color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" },
+  distMeta: { color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
+  healthPill: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
+  healthText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  statChip: { flex: 1, backgroundColor: Colors.bg, borderRadius: 8, padding: 6, alignItems: "center", borderWidth: 1, borderColor: Colors.border },
+  statChipVal: { color: "#fff", fontSize: 13, fontFamily: "Inter_700Bold" },
+  statChipLabel: { color: Colors.textMuted, fontSize: 8, fontFamily: "Inter_400Regular", marginTop: 1 },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: "#111827", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, borderColor: Colors.border, maxHeight: "90%" },
+});
+
+// ── DISTRICT ADMIN STYLES ──────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },
   headerTitle: { color: "#fff", fontSize: 20, fontFamily: "Inter_700Bold" },
-  headerSub: { color: Colors.textMuted, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  headerSub: { color: Colors.textMuted, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   emergencyBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: "#EF444444", backgroundColor: "#EF444411" },
   emergencyText: { color: "#EF4444", fontSize: 11, fontFamily: "Inter_700Bold" },
   logoutBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
@@ -656,7 +1135,6 @@ const styles = StyleSheet.create({
   cancelText: { color: Colors.textMuted, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   emergencyConfirmBtn: { flex: 2, backgroundColor: "#EF4444", borderRadius: 12, padding: 14, alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "center" },
   emergencyConfirmText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
-  // Detail modal styles
   detailCard: { backgroundColor: "#111827", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, borderColor: Colors.border, maxHeight: "90%" },
   detailHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   detailCatIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },

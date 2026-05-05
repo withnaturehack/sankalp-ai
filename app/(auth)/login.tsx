@@ -470,22 +470,44 @@ export default function LoginScreen() {
           <View style={las.demoBox}>
             <View style={las.demoHeader}>
               <Ionicons name="flask" size={12} color="#9CA3AF" />
-              <Text style={las.demoTitle}>DEMO CREDENTIALS</Text>
+              <Text style={las.demoTitle}>DEMO CREDENTIALS — TAP TO AUTO-FILL</Text>
             </View>
-            <View style={las.demoRow}>
+
+            <Pressable onPress={() => { setPhone("9876543210"); setPin("123456"); setError(""); }} style={las.demoRow}>
               <View style={[las.demoAv, { backgroundColor: "#E8F5E9" }]}><Text style={{ fontSize: 18 }}>👤</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={las.demoName}>Citizen Demo</Text>
+                <Text style={las.demoName}>Citizen</Text>
                 <Text style={las.demoInfo}>9876543210 · PIN 123456</Text>
               </View>
-            </View>
-            <View style={[las.demoRow, { paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" }]}>
-              <View style={[las.demoAv, { backgroundColor: "#FFF0E6" }]}><Text style={{ fontSize: 18 }}>🛡️</Text></View>
+              <Ionicons name="arrow-forward-circle" size={20} color="#22C55E" />
+            </Pressable>
+
+            <Pressable onPress={() => { setPhone("9999000001"); setPin("111111"); setError(""); }} style={[las.demoRow, { paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" }]}>
+              <View style={[las.demoAv, { backgroundColor: "#EFF6FF" }]}><Text style={{ fontSize: 18 }}>🏛️</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={[las.demoName, { color: Colors.saffron }]}>Admin Demo</Text>
-                <Text style={las.demoInfo}>Tap logo 5× to reveal · 9999999999</Text>
+                <Text style={[las.demoName, { color: "#3B82F6" }]}>District Admin (DM) · Dehradun</Text>
+                <Text style={las.demoInfo}>9999000001 · PIN 111111</Text>
               </View>
-            </View>
+              <Ionicons name="arrow-forward-circle" size={20} color="#3B82F6" />
+            </Pressable>
+
+            <Pressable onPress={() => { setPhone("9999000002"); setPin("222222"); setError(""); }} style={[las.demoRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: "#F3F4F6" }]}>
+              <View style={[las.demoAv, { backgroundColor: "#F0FFF4" }]}><Text style={{ fontSize: 18 }}>🏔️</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[las.demoName, { color: "#22C55E" }]}>District Admin (DM) · Haridwar</Text>
+                <Text style={las.demoInfo}>9999000002 · PIN 222222</Text>
+              </View>
+              <Ionicons name="arrow-forward-circle" size={20} color="#22C55E" />
+            </Pressable>
+
+            <Pressable onPress={() => { setPhone("9999999999"); setPin("000000"); setError(""); }} style={[las.demoRow, { paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" }]}>
+              <View style={[las.demoAv, { backgroundColor: "#FFF0E6" }]}><Text style={{ fontSize: 18 }}>⚡</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[las.demoName, { color: Colors.saffron }]}>Super Admin · Uttarakhand</Text>
+                <Text style={las.demoInfo}>9999999999 · PIN 000000</Text>
+              </View>
+              <Ionicons name="arrow-forward-circle" size={20} color={Colors.saffron} />
+            </Pressable>
           </View>
 
           <View style={las.footer}>

@@ -528,6 +528,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(201).json({ alert, nearestStations: nearestStations.slice(0, 2) });
   });
 
+  // ── SUPER ADMIN: ASSIGN TASK TO DISTRICT ──────────────────────────────────
+  app.post("/api/superadmin/assign-task", requireSuperAdmin, (req, res) => {
+    const user = (req as any).user;
+    const { district, task } = req.body;
+    if (!district || !task) return res.status(400).json({ message: "district and task required" });
+    const ann = storage.createAnnouncement({
+      title: `📋 Task Assigned by State Administration`,
+      body: `URGENT DIRECTIVE from State Command (${user.name}):\n\n${task}\n\nPlease acknowledge and act immediately.`,
+      type: "emergency",
+      department: "State Government of Uttarakhand",
+      priority: "urgent",
+      targetDistrict: district,
+      postedBy: user.name,
+    });
+    broadcast({ type: "announcement", announcement: ann, timestamp: new Date().toISOString() });
+    res.json({ success: true, announcement: ann, message: `Task assigned to ${district} administration` });
+  });
+
   // ── ANNOUNCEMENTS ─────────────────────────────────────────────────────
   app.get("/api/announcements", requireAuth, (req, res) => {
     const user = (req as any).user;
