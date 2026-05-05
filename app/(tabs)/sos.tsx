@@ -92,7 +92,7 @@ function LiveDot({ isLive }: { isLive: boolean }) {
 }
 
 // ── COUNTDOWN RING for women safety ──────────────────────────────────────────
-function CountdownRing({ count, total = 6 }: { count: number; total?: number }) {
+function CountdownRing({ count, total = 5 }: { count: number; total?: number }) {
   const progress = count / total;
   const size = 64;
   const strokeWidth = 5;
@@ -230,7 +230,7 @@ export default function SOSScreen() {
         setShakeCount(shakeTs.current.length);
         // Auto-clear display after 2s of no new shakes
         setTimeout(() => setShakeCount(c => Math.max(0, c - 1)), 2100);
-        if (shakeTs.current.length >= 6) {
+        if (shakeTs.current.length >= 5) {
           shakeTs.current = [];
           setShakeCount(0);
           activateWomenSafety("shake");

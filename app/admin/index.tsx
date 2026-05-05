@@ -234,11 +234,17 @@ export default function AdminDashboard() {
 
   const stats = getStats();
   const activeAlerts = sosAlerts.filter(s => s.status === "active");
+  const womenSafetyAlerts = activeAlerts.filter(a => a.category === "women_safety");
   const criticalComplaints = complaints.filter(c => c.priority === "P1" && c.status !== "resolved" && c.status !== "closed");
   const todayComplaints = complaints.filter(c => new Date(c.submittedAt).toDateString() === new Date().toDateString());
   const p1Count = complaints.filter(c => c.priority === "P1").length;
   const activeWorkers = workers.filter(w => w.status === "active");
   const avgHealth = workers.length ? Math.round(workers.reduce((s, w) => s + w.score, 0) / workers.length) : 0;
+  const threeDayMs = 3 * 24 * 60 * 60 * 1000;
+  const stalePendingComplaints = complaints.filter(c =>
+    (c.status === "pending" || c.status === "in_progress") &&
+    Date.now() - new Date(c.submittedAt).getTime() > threeDayMs
+  );
 
   useEffect(() => {
     Animated.spring(headerScale, { toValue: 1, friction: 6, useNativeDriver: false }).start();
@@ -373,6 +379,49 @@ export default function AdminDashboard() {
           </LinearGradient>
         </Pressable>
 
+        {/* WOMEN SAFETY SOS — URGENT BANNER */}
+        {womenSafetyAlerts.length > 0 && (
+          <Pressable onPress={() => router.push("/admin/alerts")} style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 14, overflow: "hidden" }}>
+            <LinearGradient colors={["#4C1D95", "#7C3AED", "#6D28D9"]} style={{ padding: 14, gap: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 22 }}>🛡️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 0.3 }}>
+                    ⚡ {womenSafetyAlerts.length} WOMEN SAFETY SOS ACTIVE
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                    Immediate response required — police notified
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
+              </View>
+              {womenSafetyAlerts.slice(0, 1).map(a => (
+                <View key={a.id} style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10 }}>
+                  <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
+                    👤 {a.triggeredBy || "Citizen"} · {a.district || "Unknown District"}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
+                    <Ionicons name="location" size={11} color="#A78BFA" />
+                    <Text style={{ color: "#C4B5FD", fontSize: 11, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+                      {a.location}
+                    </Text>
+                  </View>
+                  {a.nearestPoliceStation && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 }}>
+                      <Ionicons name="shield-checkmark" size={11} color="#F59E0B" />
+                      <Text style={{ color: "#FDE68A", fontSize: 11, fontFamily: "Inter_500Medium" }}>
+                        {a.nearestPoliceStation} · {a.policeDistance} km away
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </LinearGradient>
+          </Pressable>
+        )}
+
         {/* Active SOS Feed */}
         {activeAlerts.length > 0 && (
           <View style={styles.sectionCard}>
@@ -383,28 +432,32 @@ export default function AdminDashboard() {
               <Pressable onPress={() => router.push("/admin/alerts")}><Text style={styles.seeAll}>View All</Text></Pressable>
             </View>
             {activeAlerts.slice(0, 3).map(alert => (
-              <LinearGradient key={alert.id} colors={["#7F1D1D22", "#7F1D1D11"]} style={styles.sosCard}>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: (SOS_ICON_COLORS[alert.category] || "#EF4444") + "22", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name={SOS_ICON_NAMES[alert.category] || "warning"} size={16} color={SOS_ICON_COLORS[alert.category] || "#EF4444"} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sosCategory}>{alert.category.replace(/_/g, " ").toUpperCase()}</Text>
-                    <Text style={styles.sosDesc} numberOfLines={2}>{alert.description}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
-                      <Ionicons name="location-outline" size={11} color={Colors.textMuted} />
-                      <Text style={styles.sosLoc}>{alert.location}</Text>
+              <Pressable key={alert.id} onPress={() => router.push("/admin/alerts")}>
+                <LinearGradient colors={alert.category === "women_safety" ? ["#4C1D9522", "#4C1D9511"] : ["#7F1D1D22", "#7F1D1D11"]} style={[styles.sosCard, alert.category === "women_safety" && { borderColor: "#7C3AED44" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: (SOS_ICON_COLORS[alert.category] || "#EF4444") + "22", alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name={SOS_ICON_NAMES[alert.category] || "warning"} size={16} color={SOS_ICON_COLORS[alert.category] || "#EF4444"} />
                     </View>
-                    {alert.nearestPoliceStation && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                        <Ionicons name="shield-outline" size={11} color="#F59E0B" />
-                        <Text style={styles.sosPolice}>{alert.nearestPoliceStation} · {alert.policeDistance} km</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.sosCategory, alert.category === "women_safety" && { color: "#A78BFA" }]}>{alert.category.replace(/_/g, " ").toUpperCase()}</Text>
+                      <Text style={styles.sosDesc} numberOfLines={2}>{alert.description}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                        <Ionicons name="location-outline" size={11} color={Colors.textMuted} />
+                        <Text style={styles.sosLoc}>{alert.location}</Text>
                       </View>
-                    )}
+                      {alert.nearestPoliceStation && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                          <Ionicons name="shield-outline" size={11} color="#F59E0B" />
+                          <Text style={styles.sosPolice}>{alert.nearestPoliceStation} · {alert.policeDistance} km</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={[styles.sosBadge, alert.category === "women_safety" && { backgroundColor: "#7C3AED" }]}>
+                      <Text style={styles.sosBadgeText}>P1</Text>
+                    </View>
                   </View>
-                  <View style={styles.sosBadge}><Text style={styles.sosBadgeText}>P1</Text></View>
-                </View>
-              </LinearGradient>
+                </LinearGradient>
+              </Pressable>
             ))}
           </View>
         )}

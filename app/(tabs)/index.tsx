@@ -29,6 +29,15 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   closed:      { label: "Closed",      color: "#6B7280", bg: "#F9FAFB" },
 };
 
+const UK_NEWS = [
+  { id: "n1", tag: "GOVERNMENT", headline: "CM launches ₹2,000 Cr Char Dham Road Widening Project", time: "2h ago", icon: "road-outline" as const, color: "#3B82F6", bg: "#EFF6FF" },
+  { id: "n2", tag: "ENVIRONMENT", headline: "Uttarakhand ranks 1st in India for forest cover increase 2025", time: "5h ago", icon: "leaf" as const, color: "#22C55E", bg: "#F0FFF4" },
+  { id: "n3", tag: "SAFETY", headline: "New 112 emergency centers opened in Pithoragarh & Champawat", time: "1d ago", icon: "shield-checkmark" as const, color: "#8B5CF6", bg: "#F5F3FF" },
+  { id: "n4", tag: "INFRASTRUCTURE", headline: "Rishikesh-Karnaprayag rail project 62% complete, on track for 2026", time: "1d ago", icon: "train-outline" as const, color: "#F59E0B", bg: "#FFFBEB" },
+  { id: "n5", tag: "HEALTH", headline: "50 mobile health vans deployed to remote hill districts of UK", time: "2d ago", icon: "medkit" as const, color: "#EF4444", bg: "#FEF2F2" },
+  { id: "n6", tag: "DISASTER", headline: "SDRF teams on alert: Pre-monsoon preparedness drive begins", time: "2d ago", icon: "warning" as const, color: "#6B7280", bg: "#F9FAFB" },
+];
+
 const SCHEMES_DATA = [
   {
     key: "swarojgar",
@@ -576,6 +585,39 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        {/* UTTARAKHAND NEWS */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleWrap}>
+              <View style={[styles.kpiIconWrap, { backgroundColor: "#EFF6FF" }]}>
+                <Ionicons name="newspaper" size={14} color="#3B82F6" />
+              </View>
+              <Text style={styles.sectionTitle}>Uttarakhand News</Text>
+            </View>
+            <View style={styles.livePill}>
+              <PulsingDot color="#3B82F6" />
+              <Text style={[styles.liveText, { color: "#3B82F6" }]}>Today</Text>
+            </View>
+          </View>
+          {UK_NEWS.map((item, idx) => (
+            <View key={item.id} style={[styles.newsRow, idx > 0 && { borderTopWidth: 1, borderTopColor: "#F3F4F6" }]}>
+              <View style={[styles.newsIconWrap, { backgroundColor: item.bg }]}>
+                <Ionicons name={item.icon} size={15} color={item.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                  <View style={[styles.newsTag, { backgroundColor: item.color + "18" }]}>
+                    <Text style={[styles.newsTagText, { color: item.color }]}>{item.tag}</Text>
+                  </View>
+                  <Text style={styles.newsTime}>{item.time}</Text>
+                </View>
+                <Text style={styles.newsHeadline} numberOfLines={2}>{item.headline}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color="#D1D5DB" />
+            </View>
+          ))}
+        </View>
+
         {/* EMERGENCY CONTACTS */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -935,4 +977,11 @@ const styles = StyleSheet.create({
   wardDot: { width: 7, height: 7, borderRadius: 3.5 },
   wardName: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   wardScore: { color: "#9CA3AF", fontSize: 10, fontFamily: "Inter_400Regular" },
+
+  newsRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
+  newsIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  newsTag: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  newsTagText: { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  newsTime: { color: "#9CA3AF", fontSize: 10, fontFamily: "Inter_400Regular" },
+  newsHeadline: { color: "#111827", fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
 });

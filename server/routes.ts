@@ -3,6 +3,46 @@ import { createServer, type Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
+const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
+
+async function callNvidiaChat(messages: Array<{ role: string; content: string }>, model = "meta/llama-3.1-8b-instruct", maxTokens = 512): Promise<string | null> {
+  try {
+    const res = await fetch(`${NVIDIA_BASE}/chat/completions`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${NVIDIA_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return data.choices?.[0]?.message?.content || null;
+  } catch { return null; }
+}
+
+async function callNvidiaVision(imageBase64: string, prompt: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${NVIDIA_BASE}/chat/completions`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${NVIDIA_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "meta/llama-3.2-11b-vision-instruct",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+          ],
+        }],
+        temperature: 0.3,
+        max_tokens: 256,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return data.choices?.[0]?.message?.content || null;
+  } catch { return null; }
+}
+
 // ── AI REPLY ENGINE ───────────────────────────────────────────────────────────
 function generateAIReply(message: string, history: Array<{ role: string; content: string }>): string {
   const msg = message.toLowerCase().trim();
@@ -455,11 +495,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── AI CHAT ───────────────────────────────────────────────────────────
-  app.post("/api/ai/chat", requireAuth, (req, res) => {
+  app.post("/api/ai/chat", requireAuth, async (req, res) => {
     const { message, history } = req.body;
     if (!message) return res.status(400).json({ message: "message required" });
+
+    const systemPrompt = "You are SANKALP AI, the official civic intelligence assistant for Uttarakhand, India (Devbhoomi). Help citizens with: filing and tracking civic complaints (potholes, garbage, water, electricity, streetlights, drains, trees), emergency SOS services, government schemes (CM Swarojgar Yojana, Ayushman Bharat, Gaura Devi Kanya Dhan, Veer CS Garhwali Paryatan Yojana), all 13 Uttarakhand districts (Dehradun, Haridwar, Tehri Garhwal, Pauri Garhwal, Rudraprayag, Chamoli, Uttarkashi, Pithoragarh, Bageshwar, Almora, Champawat, Nainital, Udham Singh Nagar), helplines (Police 100, Ambulance 108, Women 1090, Disaster 1070, CM Helpline 1905), Char Dham tourism, and civic participation. Respond in friendly, helpful English. Add relevant helpline numbers. Keep responses under 300 words.";
+
+    const msgs = [
+      { role: "system", content: systemPrompt },
+      ...(history || []).map((h: any) => ({ role: h.role === "ai" ? "assistant" : h.role, content: h.content })),
+      { role: "user", content: message },
+    ];
+
+    const nvReply = await callNvidiaChat(msgs);
+    if (nvReply) {
+      return res.json({ reply: nvReply, timestamp: new Date().toISOString(), powered_by: "NVIDIA Llama" });
+    }
+
     const reply = generateAIReply(message, history || []);
     res.json({ reply, timestamp: new Date().toISOString() });
+  });
+
+  // ── AI IMAGE ANALYSIS ─────────────────────────────────────────────────
+  app.post("/api/ai/analyze-image", requireAuth, async (req, res) => {
+    const { imageBase64, category } = req.body;
+    if (!imageBase64) return res.status(400).json({ message: "imageBase64 required" });
+
+    const prompt = `You are a civic issue analyzer for Uttarakhand, India. Analyze this image and respond ONLY with valid JSON (no other text): {"severity":"Low/Medium/High/Critical","issueType":"pothole/garbage/streetlight/water/drain/electricity/other","description":"brief description under 60 words","priority":"P1/P2/P3/P4","department":"which government department handles this"}`;
+
+    const raw = await callNvidiaVision(imageBase64, prompt);
+    if (raw) {
+      try {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          return res.json({ analysis: JSON.parse(match[0]), raw, powered_by: "NVIDIA Vision" });
+        }
+      } catch {}
+      return res.json({ analysis: { severity: "Medium", issueType: category || "other", description: raw.slice(0, 200), priority: "P3", department: "Municipal Corporation" }, raw });
+    }
+
+    res.json({ analysis: { severity: "Medium", issueType: category || "other", description: "Photo received. Pending AI review.", priority: "P3", department: "Municipal Corporation" }, powered_by: "fallback" });
   });
 
   return httpServer;

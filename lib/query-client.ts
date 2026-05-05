@@ -6,8 +6,12 @@ import Constants from "expo-constants";
  * Gets the base URL for the Express API server
  */
 export function getWsUrl(): string {
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-    return "ws://localhost:5000/ws";
+  if (typeof window !== "undefined") {
+    if (window.location.hostname === "localhost") {
+      return "ws://localhost:5000/ws";
+    }
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${window.location.host}/ws`;
   }
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `wss://${process.env.EXPO_PUBLIC_DOMAIN}/ws`;
@@ -16,17 +20,15 @@ export function getWsUrl(): string {
 }
 
 export function getApiUrl(): string {
-  // When running in a browser on localhost (dev / e2e tests), talk directly to
-  // the local Express backend so we avoid the Replit proxy redirect that breaks
-  // CORS preflight requests.
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-    return "http://localhost:5000/";
+  if (typeof window !== "undefined") {
+    if (window.location.hostname === "localhost") {
+      return "http://localhost:5000/";
+    }
+    return window.location.origin + "/";
   }
 
-  // EXPO_PUBLIC_ env vars are injected at Metro bundle time — prefer over app.json extra
   if (process.env.EXPO_PUBLIC_DOMAIN) {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN;
-    return `https://${domain}/`;
+    return `https://${process.env.EXPO_PUBLIC_DOMAIN}/`;
   }
 
   const host =
@@ -34,7 +36,6 @@ export function getApiUrl(): string {
     (Constants.manifest as any)?.extra?.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {
-    console.warn("Domain not set, using fallback");
     return "http://localhost:5000/";
   }
 

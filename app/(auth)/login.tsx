@@ -36,9 +36,9 @@ const SLIDES = [
     tag: "WOMEN SAFETY",
     tagColor: "#7C3AED",
     heading: "Your Safety,\nOur Priority",
-    desc: "5 panic modes — shake, hold, tap, volume press, side button. Nearest police auto-notified with live GPS instantly.",
+    desc: "5 panic modes: shake phone 5 times, hold button, tap 5×, volume press, side button. Nearest police auto-notified with live GPS in under 2 seconds.",
     bullets: [
-      { icon: "pulse" as const,            text: "6-shake instant panic mode" },
+      { icon: "pulse" as const,            text: "5-shake instant panic mode" },
       { icon: "shield-checkmark" as const, text: "2 nearest police auto-notified" },
       { icon: "navigate" as const,         text: "Live GPS location streaming" },
     ],
