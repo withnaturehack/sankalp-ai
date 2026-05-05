@@ -1,139 +1,203 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
+import { execFile } from "node:child_process";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "";
-const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
+const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+console.log(`[NVIDIA] API key: ${NVIDIA_API_KEY ? `loaded (${NVIDIA_API_KEY.length} chars)` : "MISSING"}`);
 
-async function callNvidiaChat(messages: Array<{ role: string; content: string }>, model = "meta/llama-3.1-8b-instruct", maxTokens = 512): Promise<string | null> {
-  try {
-    const res = await fetch(`${NVIDIA_BASE}/chat/completions`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${NVIDIA_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens }),
+// Use curl to bypass Replit's Node.js egress sandbox restrictions
+function curlPost(url: string, authKey: string, body: string, timeoutSecs = 12): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "-s", "--max-time", String(timeoutSecs),
+      "-X", "POST", url,
+      "-H", `Authorization: Bearer ${authKey}`,
+      "-H", "Content-Type: application/json",
+      "-H", "Accept: application/json",
+      "-d", body,
+    ];
+    execFile("curl", args, { maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) { reject(new Error(err.message || stderr || "curl failed")); return; }
+      if (!stdout) { reject(new Error("empty response")); return; }
+      resolve(stdout);
     });
-    if (!res.ok) return null;
-    const data = await res.json() as any;
-    return data.choices?.[0]?.message?.content || null;
-  } catch { return null; }
+  });
+}
+
+async function callNvidiaChat(messages: Array<{ role: string; content: string }>, model = "meta/llama-3.1-8b-instruct", maxTokens = 600): Promise<string | null> {
+  if (!NVIDIA_API_KEY) return null;
+  try {
+    const body = JSON.stringify({ model, messages, stream: false, temperature: 0.75, top_p: 0.9, max_tokens: maxTokens });
+    const raw = await curlPost(NVIDIA_URL, NVIDIA_API_KEY, body, 12);
+    const data = JSON.parse(raw) as any;
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (content) console.log(`[NVIDIA] ✅ ${model} replied (${content.length} chars)`);
+    else if (data.error) console.error("[NVIDIA] API error:", data.error?.message);
+    return content || null;
+  } catch (err: any) {
+    console.error("[NVIDIA] chat error:", err?.message?.slice(0, 100));
+    return null;
+  }
 }
 
 async function callNvidiaVision(imageBase64: string, prompt: string): Promise<string | null> {
+  if (!NVIDIA_API_KEY) return null;
   try {
-    const res = await fetch(`${NVIDIA_BASE}/chat/completions`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${NVIDIA_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "meta/llama-3.2-11b-vision-instruct",
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
-          ],
-        }],
-        temperature: 0.3,
-        max_tokens: 256,
-      }),
+    const body = JSON.stringify({
+      model: "meta/llama-3.2-11b-vision-instruct",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+        ],
+      }],
+      stream: false,
+      temperature: 0.3,
+      max_tokens: 300,
     });
-    if (!res.ok) return null;
-    const data = await res.json() as any;
-    return data.choices?.[0]?.message?.content || null;
-  } catch { return null; }
+    const raw = await curlPost(NVIDIA_URL, NVIDIA_API_KEY, body, 15);
+    const data = JSON.parse(raw) as any;
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (err: any) {
+    console.error("[NVIDIA Vision] error:", err?.message?.slice(0, 100));
+    return null;
+  }
 }
 
-// ── AI REPLY ENGINE ───────────────────────────────────────────────────────────
-function generateAIReply(message: string, history: Array<{ role: string; content: string }>): string {
+// ── AI SYSTEM PROMPT BUILDER ─────────────────────────────────────────────────
+function buildSystemPrompt(userName?: string, userDistrict?: string): string {
+  const complaints = storage.getComplaints(userDistrict);
+  const sos = storage.getSosAlerts(userDistrict);
+  const wards = storage.getWards(userDistrict);
+  const resolved = complaints.filter(c => c.status === "resolved").length;
+  const pending = complaints.filter(c => c.status === "pending").length;
+  const activeSos = sos.filter(s => s.status === "active").length;
+  const avgHealth = wards.length ? Math.round(wards.reduce((s, w) => s + w.healthScore, 0) / wards.length) : 0;
+  const topWard = [...wards].sort((a, b) => b.healthScore - a.healthScore)[0];
+  const worstWard = [...wards].sort((a, b) => a.healthScore - b.healthScore)[0];
+
+  return `You are Sankalp — a warm, knowledgeable civic assistant working for the Government of Uttarakhand's SANKALP AI platform. You speak like a caring, helpful human being — not a robot or a formal government notice.
+
+Your personality:
+- Warm, empathetic, and conversational — like a trusted local government helper
+- You use natural language, not bullet-point lists unless genuinely needed
+- You mix Hindi words naturally (Namaste, ji, Devbhoomi, dhanyavaad) when it feels right
+- You care about the citizen's problem and show it
+- Never sound bureaucratic or robotic
+- Keep replies concise but human — under 250 words
+- Use emojis sparingly and only when they add warmth, not just decoration
+
+Current live data for ${userDistrict || "Uttarakhand"} (as of right now):
+- Total complaints: ${complaints.length} | Resolved: ${resolved} | Pending: ${pending}
+- Active SOS emergencies: ${activeSos}
+- Average district health score: ${avgHealth}/100
+${topWard ? `- Best performing area: ${topWard.name} (score ${topWard.healthScore})` : ""}
+${worstWard ? `- Needs most attention: ${worstWard.name} (score ${worstWard.healthScore})` : ""}
+
+You know everything about:
+- Filing civic complaints (potholes, garbage, water, electricity, streetlights, drains, trees)
+- Tracking complaint status via ticket IDs
+- Emergency SOS — Police: 100, Ambulance: 108, Women helpline: 1090, Disaster: 1070, CM Helpline: 1905
+- Women safety — SANKALP has 5 panic modes; 2 nearest police stations are auto-notified with live GPS
+- All 13 Uttarakhand districts: Dehradun, Haridwar, Tehri Garhwal, Pauri Garhwal, Rudraprayag, Chamoli, Uttarkashi, Pithoragarh, Bageshwar, Almora, Champawat, Nainital, Udham Singh Nagar
+- Government schemes: CM Swarojgar Yojana, Gaura Devi Kanya Dhan Yojana (₹51,000 for girls), Veer CS Garhwali Paryatan Yojana, PM Awas Yojana, Ayushman Bharat
+- Uttarakhand helplines: UPCL (1912), Jal Sansthan (1916), PWD (1800-180-4244), SDRF (9557444486)
+- Char Dham pilgrimage routes, tourism, road conditions
+- Uttarakhand disaster management (USDMA), SDRF, NDRF
+
+${userName ? `The person you're talking to is named ${userName}${userDistrict ? ` from ${userDistrict}` : ""}. Use their name occasionally to make it personal.` : ""}
+
+Important: If someone is in danger or needs emergency help right now, immediately give them the most relevant emergency number first, then explain further. Their safety comes first.`;
+}
+
+// ── HUMANIZED AI ENGINE (instant, context-aware, live-data powered) ──────────
+function generateAIReply(message: string, history: Array<{ role: string; content: string }> = [], userName?: string, userDistrict?: string): string {
   const msg = message.toLowerCase().trim();
+  const firstName = userName ? userName.split(" ")[0] : "";
+  const name = firstName ? `, ${firstName}` : "";
+  const district = userDistrict || "Uttarakhand";
+  // Check if user has mentioned a specific topic in the last turn for context
+  const lastBotMsg = history.filter(h => h.role === "ai" || h.role === "assistant").pop()?.content?.toLowerCase() || "";
 
-  if (/^(hi|hello|namaste|namaskar|hey|hola|good morning|good evening|good afternoon|नमस्ते|नमस्कार)/.test(msg)) {
-    return "🙏 Namaste! Welcome to SANKALP AI — Uttarakhand's civic intelligence platform.\n\nI can help you with:\n• 📋 Reporting civic issues (potholes, garbage, electricity, water)\n• 🔍 Tracking complaint status\n• 🆘 Emergency SOS & helplines\n• 🏛️ Government schemes & services\n• 🗺️ District & block information\n• 📊 Uttarakhand district statistics\n\nWhat would you like help with today?";
+  if (/^(hi|hello|namaste|namaskar|hey|good morning|good evening|good afternoon|नमस्ते|नमस्कार)/.test(msg)) {
+    const greetings = [
+      `Namaste${name}! 🙏 Great to have you here. I'm Sankalp, your civic assistant for ${district}.\n\nI can help you report issues, track your complaints, find government schemes, or handle emergencies. What's on your mind today?`,
+      `Hello${name}! Welcome to SANKALP AI — your direct line to better governance in ${district}.\n\nWhether it's a pothole, a water problem, or you just need help navigating a government scheme — I'm here for you. What can I help with?`,
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
   }
 
-  if (/report|complaint|issue|submit|file|lodge|दर्ज/.test(msg)) {
-    if (/pothole|गड्ढा/.test(msg)) {
-      return "🕳️ **Reporting a Pothole in Uttarakhand**\n\nSteps:\n1. Go to the **Complaints** tab\n2. Tap **+** to add a new complaint\n3. Select category: **Pothole**\n4. Enable location or enter manually\n5. Add a photo (recommended)\n6. Submit — you'll get a ticket ID\n\n📞 PWD Uttarakhand Helpline: **1800-180-4244**\n\n⚡ Mountain roads get P1 priority due to safety risks.";
-    }
-    if (/garbage|trash|waste|कूड़ा/.test(msg)) {
-      return "🗑️ **Garbage / Waste Complaint**\n\nReport garbage issues:\n1. Open **Complaints** → tap **+**\n2. Select **Garbage Collection**\n3. Pin your location on the map\n4. Photo helps speed up resolution\n\n📱 Also try: **Swachh Bharat Mission App**\n📞 ULB Helpline (Urban Local Body): **1533**\n\nKeeping Uttarakhand's hills clean is everyone's responsibility! 🏔️";
-    }
-    if (/water|पानी|supply/.test(msg)) {
-      return "💧 **Water Supply Complaint**\n\n1. Go to **Complaints** tab → **+**\n2. Category: **Water Supply**\n3. Specify: low pressure / no supply / contamination\n4. Add your block/ward name\n\n📞 Uttarakhand Jal Sansthan: **1916**\n🌐 Online: ujs.uk.gov.in\n\nMountain water pipelines need extra care — report early!";
-    }
-    if (/electricity|power|current|बिजली|light/.test(msg)) {
-      return "⚡ **Electricity / Power Complaint**\n\n1. Complaints tab → **+** → **Electricity**\n2. Select: power cut / low voltage / street light / transformer\n3. Mention landmark for faster dispatch\n\n📞 UPCL Helpline: **1912** (24×7)\n📞 UPCL Toll Free: **1800-180-8752**\n\nHill power outages after storms get automatic P1 priority.";
-    }
-    if (/streetlight|street light|lamp/.test(msg)) {
-      return "💡 **Street Light Complaint**\n\nDark mountain roads are dangerous. Report quickly:\n1. Complaints → **+** → **Street Light**\n2. Drop pin on the exact location\n3. Mention pole number if visible\n\n📞 ULB Electric Wing — contact district office\nAverage fix time: **2–4 working days**\n\nTip: Multiple reports from the same block get **P1 priority** automatically.";
-    }
-    if (/drain|sewer|sewage|नाली/.test(msg)) {
-      return "🌊 **Drain / Sewage Complaint**\n\nFor blocked drains or sewage overflow:\n1. Complaints → **+** → **Drain**\n2. Mark location precisely\n3. Photo helps locate the blockage\n\n📞 Uttarakhand Jal Sansthan: **1800-180-4244**\nMonsoon season in hills: Priority automatically escalated.";
-    }
-    if (/tree|पेड़|fallen|landslide|भूस्खलन/.test(msg)) {
-      return "🌳 **Tree / Landslide Complaint**\n\nFor fallen trees, dangerous branches, or landslide debris:\n1. Complaints → **+** → **Tree / Other**\n2. Mark exact location\n3. AI assesses urgency automatically\n\n📞 SDRF Uttarakhand: **9557444486**\n⚠️ For road-blocking landslides also call **1070** (Disaster)\n\nSafety first — stay away from unstable slopes!";
-    }
-    return "📋 **Reporting a Civic Issue**\n\nHere's how to file any complaint:\n1. Tap the **Complaints** tab (bottom nav)\n2. Press **+** button\n3. Choose your issue category\n4. Add location, description & photo\n5. Submit — AI assigns priority instantly\n\n📌 Ticket ID generated immediately\n📊 Track real-time status updates\n\nWhat type of issue are you facing?";
+  if (/sos|emergency|danger|help me|unsafe|attack|harassment|rape|महिला|women safety/.test(msg)) {
+    return `Please stay calm — I'm here with you right now.\n\n🆘 Call 112 immediately for unified emergency response.\n📞 Women helpline: 1090 (24×7, free)\n📞 Police: 100\n📞 Disaster helpline: 1070\n\nIn the app, go to the SOS tab — your live location will be shared with the 2 nearest police stations automatically. You don't need to say anything, just tap the panic button.\n\nYou're not alone. Please get to a safe place first. Is there anything specific I can help you with right now?`;
   }
 
-  if (/track|status|ticket|complaint id|pending|update|कहाँ/.test(msg)) {
-    return "🔍 **Tracking Your Complaint**\n\nTo check status:\n1. Go to **Complaints** tab\n2. Find your complaint or search by ticket ID\n3. Status updates: **Pending → In Progress → Resolved**\n\n📬 You'll receive notifications for every status change.\n\n**Status meanings:**\n🟡 **Pending** — Received, queued for assignment\n🔵 **In Progress** — Field worker dispatched\n🟢 **Resolved** — Issue fixed, please verify\n\nNeed help with a specific ticket number?";
+  if (/pothole|road damage|गड्ढा|broken road/.test(msg)) {
+    return `Pothole on a mountain road${name ? `, ${name.trim()}` : ""} — that's genuinely dangerous and I'm glad you're reporting it.\n\nJust head to the Complaints tab, tap the + button, pick "Pothole" as the category, pin your location, and submit. If you can add a photo it really speeds things up. You'll get a ticket ID immediately.\n\nPWD helpline: 1800-180-4244 if it's urgent. Mountain road potholes automatically get higher priority — so expect a faster response. 🏔️`;
   }
 
-  if (/sos|emergency|help|danger|unsafe|attack|rape|harassment|महिला|women safety|woman/.test(msg)) {
-    return "🆘 **EMERGENCY HELP — Uttarakhand**\n\n**IMMEDIATE HELP:**\n📞 **100** — Police Emergency\n📞 **112** — Unified Emergency\n📞 **1090** — Women Helpline (24×7)\n📞 **181** — Women Safety Helpline\n📞 **1070** — State Disaster Helpline\n\n**In the App:**\n→ Go to **SOS** tab → Tap the red button\n→ Your GPS location is shared with nearest police station\n\n⚠️ SOS alert notifies the district command center immediately.";
+  if (/garbage|waste|trash|कूड़ा|littering/.test(msg)) {
+    return `Garbage dumping is one of the top complaints we get in ${district} — you're not alone in being frustrated by this.\n\nReport it through the Complaints tab → Garbage Collection. Add the exact location and a photo if possible. The ULB (Urban Local Body) gets notified directly. ULB helpline: 1533.\n\nEvery report genuinely makes a difference — it builds pressure for regular collection routes in your area. 🌿`;
   }
 
-  if (/ward|block|area|locality|zone|district|जिला/.test(msg)) {
-    const wards = storage.getWards();
-    const wardNames = wards.slice(0, 5).map(w => `• ${w.name} (${w.district}) — Score: ${w.healthScore}/100`).join("\n");
-    return `🗺️ **Uttarakhand Block/Ward Information**\n\nUttarakhand has 13 districts with ${wards.length} blocks monitored by SANKALP AI.\n\n**Sample Block Health Scores:**\n${wardNames}\n\n📊 View all blocks on the **Analytics** tab\n🗺️ See block boundaries on the **Map** tab\n\nEach block score reflects complaints, resolution speed and safety rating.`;
+  if (/water|पानी|supply|pipeline|jal/.test(msg)) {
+    return `Water supply problems in the hills can be really difficult, especially in summer.\n\nPlease file a complaint through the Complaints tab → Water Supply. Mention whether it's no supply, low pressure, or contamination — that helps route it to the right team faster.\n\nUttarakhand Jal Sansthan helpline: 1916. They also have an online portal at ujs.uk.gov.in if you prefer.\n\nIs this an ongoing issue or did it just start?`;
   }
 
-  if (/scheme|yojana|benefit|welfare|subsidy|pension|सरकारी|government|योजना/.test(msg)) {
-    return "🏛️ **Uttarakhand Government Schemes**\n\n**Popular Schemes:**\n🔹 **Mukhyamantri Swarojgar Yojana** — Self-employment loans for hill residents\n🔹 **Veer Chandra Singh Garhwali Paryatan Yojana** — Eco-tourism grants\n🔹 **Gaura Devi Kanya Dhan Yojana** — ₹51,000 for girl students\n🔹 **Mukhyamantri Mahila Utthan Yojana** — Women empowerment grants\n🔹 **Deen Dayal Upadhyaya Gramin Kaushalya Yojana** — Skill training\n🔹 **PM Awas Yojana Urban** — Affordable housing\n\n🌐 For applications: **cm.uk.gov.in**\n📞 CM Helpline: **1905**\n\nWant details on any specific scheme?";
+  if (/electricity|power cut|बिजली|upcl|transformer|voltage/.test(msg)) {
+    return `Power cuts in the hills are tough${name}. UPCL's helpline 1912 is available 24×7 for immediate issues like exposed wires or transformer sparking — those are genuinely dangerous so call immediately if that's the case.\n\nFor routine complaints like frequent cuts or billing issues, use the Complaints tab → Electricity. Mentioning a nearby landmark helps the team locate the fault faster.\n\nIs this a safety emergency or an ongoing supply issue?`;
   }
 
-  if (/hospital|health|doctor|medical|ambulance|illness|sick|अस्पताल/.test(msg)) {
-    return "🏥 **Uttarakhand Health Services**\n\n**Emergency:**\n🚑 Ambulance: **108** (free)\n🚑 AIIMS Rishikesh: **0135-2462900**\n\n**Major Govt Hospitals:**\n• AIIMS Rishikesh — 0135-2462900\n• Doon Medical College, Dehradun — 0135-2656621\n• Sushila Tiwari Hospital, Haldwani — 05946-220052\n• District Hospital Champawat — 05965-230100\n• Base Hospital Srinagar Garhwal — 01346-252206\n\n**Uttarakhand Helplines:**\n📞 Health helpline: **104**\n💊 Free medicines available at government hospitals with Aadhaar.";
+  if (/streetlight|street light|lamp|dark road|अंधेरा/.test(msg)) {
+    return `Dark roads — especially on mountain stretches — are a real safety risk and I take this seriously.\n\nFile through Complaints → Street Light. If you can note the pole number (usually printed on it), that makes repairs much faster. Average fix time is 2-4 working days for non-clustered areas.\n\nIf multiple lights in your block are out, report each one — clustered reports automatically escalate to P1 priority. 💡`;
   }
 
-  if (/statistic|data|report|count|how many|total|analytics|स्थिति/.test(msg)) {
-    const complaints = storage.getComplaints();
-    const sos = storage.getSosAlerts();
-    const wards = storage.getWards();
+  if (/drain|sewer|sewage|overflow|नाली/.test(msg)) {
+    return `Sewage overflow is a health hazard and I want this escalated quickly for you.\n\nGo to Complaints → Drain, mark the precise location, and add a photo if safe to do so. Jal Sansthan handles this — helpline: 1800-180-4244.\n\nDuring monsoon season, drain reports in ${district} automatically get priority due to flood risk. When did this start?`;
+  }
+
+  if (/scheme|yojana|welfare|subsidy|benefit|सरकारी|government scheme/.test(msg)) {
+    return `There are several Uttarakhand schemes that might help you${name}.\n\nFor self-employment, the CM Swarojgar Yojana offers loans with 25% subsidy up to ₹2 lakh — great for hill residents. For families with daughters, Gaura Devi Kanya Dhan Yojana gives ₹51,000. Housing? PM Awas Yojana is open for those earning under ₹18 lakh annually.\n\nFor all applications: cm.uk.gov.in or visit your district magistrate's office. CM Helpline: 1905.\n\nWhich scheme are you interested in? I can give you specific details.`;
+  }
+
+  if (/hospital|doctor|medical|ambulance|health|अस्पताल/.test(msg)) {
+    return `For a medical emergency, call 108 right away — ambulance is free across Uttarakhand.\n\nNearest major hospitals to note:\n- AIIMS Rishikesh: 0135-2462900\n- Doon Medical College (Dehradun): 0135-2656621  \n- Sushila Tiwari (Haldwani): 05946-220052\n\nHealth helpline: 104 for medical advice. Government hospitals provide free medicines with Aadhaar.\n\nIs this an emergency right now, or are you looking for general health service information?`;
+  }
+
+  if (/track|status|ticket|where is my|complaint id/.test(msg)) {
+    return `To check your complaint status${name}, go to the Complaints tab — your tickets are listed there with live status updates.\n\nStatus means: 🟡 Pending = received, 🔵 In Progress = worker dispatched, 🟢 Resolved = done (you can verify or reject).\n\nIf a complaint was marked resolved but the issue isn't actually fixed, you can reject it — 3 rejections automatically reopen it for investigation.\n\nDo you have a specific ticket ID I can help you look into?`;
+  }
+
+  if (/landslide|flood|disaster|cloudburst|भूस्खलन|बाढ़/.test(msg)) {
+    return `Please be safe — landslides and cloudbursts in Uttarakhand can develop very quickly.\n\n📞 State Emergency: 1070 (24×7)\n📞 SDRF: 9557444486\n📞 NDRF: 011-24363260\n\nIf roads are blocked, report through Complaints → Other and mention "landslide debris" — it gets highest priority. Avoid traveling through affected areas until SDRF clears them.\n\nAre you currently in a danger zone or reporting an incident?`;
+  }
+
+  if (/thank|thanks|dhanyavaad|धन्यवाद/.test(msg)) {
+    const thanks = [
+      `Dhanyavaad${name}! 🙏 It means a lot. Every complaint you file, every issue you report — it adds up and makes ${district} better for everyone.\n\nYou're earning points too — check your profile to see your civic rank! Stay safe in the hills. 🏔️`,
+      `Thank you for using SANKALP${name}! Your civic participation is what drives real change in Devbhoomi. Feel free to come back anytime — I'm always here. जय उत्तराखंड! 🇮🇳`,
+    ];
+    return thanks[Math.floor(Math.random() * thanks.length)];
+  }
+
+  if (/statistic|how many|total|analytics|data/.test(msg)) {
+    const complaints = storage.getComplaints(userDistrict);
     const resolved = complaints.filter(c => c.status === "resolved").length;
     const pending = complaints.filter(c => c.status === "pending").length;
-    const active = sos.filter(s => s.status === "active").length;
+    const activeSos = storage.getSosAlerts(userDistrict).filter(s => s.status === "active").length;
+    const wards = storage.getWards(userDistrict);
     const avgHealth = wards.length ? Math.round(wards.reduce((s, w) => s + w.healthScore, 0) / wards.length) : 0;
-    return `📊 **SANKALP AI — Live Uttarakhand Stats**\n\n**Complaints:**\n• Total: ${complaints.length}\n• Resolved: ${resolved} (${Math.round(resolved/Math.max(complaints.length,1)*100)}%)\n• Pending: ${pending}\n\n**Safety:**\n• Active SOS Alerts: ${active}\n• Districts monitored: 13\n• Avg District Health Score: ${avgHealth}/100\n\n**AI Performance:**\n• Auto-prioritization: Active\n• Real-time monitoring: ✅\n• Last updated: Just now\n\nView detailed analytics in the **Analytics** tab →`;
+    return `Here's the live picture for ${district} right now${name}:\n\n${complaints.length} total complaints have been filed — ${resolved} resolved (${Math.round(resolved/Math.max(complaints.length,1)*100)}% resolution rate), and ${pending} still pending. There ${activeSos === 1 ? "is 1 active SOS alert" : `are ${activeSos} active SOS alerts`} being responded to.\n\nThe average district health score is ${avgHealth}/100. You can see the full breakdown in the Analytics tab — it updates in real time.\n\nWant me to explain what any of these numbers mean?`;
   }
 
-  if (/tourism|tourist|kedarnath|badrinath|char dham|valley of flowers|trek|pilgrimage|यात्रा/.test(msg)) {
-    return "🏔️ **Uttarakhand Tourism & Pilgrimage**\n\n**Char Dham Helplines:**\n📞 Badrinath: **01381-222308**\n📞 Kedarnath: **01364-233521**\n📞 Gangotri: **01374-222254**\n📞 Yamunotri: **01371-251247**\n\n**Emergency on Char Dham Route:**\n📞 SDRF: **9557444486**\n📞 Disaster: **1070**\n\n**Tourism Dept:**\n🌐 uttarakhandtourism.gov.in\n📞 **1364** (Tourist helpline)\n\nReport issues near tourist sites through the **Complaints** tab — we prioritize tourist area maintenance!";
-  }
-
-  if (/disaster|flood|landslide|earthquake|cloudburst|बाढ़|भूस्खलन/.test(msg)) {
-    return "⛰️ **Disaster Management — Uttarakhand**\n\n**Emergency Helplines:**\n📞 State EOC (Emergency): **1070**\n📞 SDRF Uttarakhand: **9557444486**\n📞 NDRF: **011-24363260**\n📞 Police: **100**\n📞 Fire: **101**\n📞 Ambulance: **108**\n\n**Uttarakhand Disaster Management Authority:**\n🌐 usdma.uk.gov.in\n\n**In the App:**\n→ Use **SOS** tab for immediate help\n→ Report damaged roads via **Complaints**\n\n⚠️ During monsoon: always check road status before traveling to hill areas.";
-  }
-
-  if (/transport|bus|road|highway|nh|roadways|यातायात|सड़क/.test(msg)) {
-    return "🚌 **Uttarakhand Transport**\n\n**URSTC Bus Service:**\n📞 URSTC Helpline: **0135-2712355**\n🌐 urstc.uk.gov.in\n\n**Road Status:**\n📞 PWD Helpline: **1800-180-4244**\n🌐 pwduk.uk.gov.in\n\n**Key Highways:**\n• NH-58: Delhi–Badrinath\n• NH-7: Dehradun–Tanakpur\n• NH-109: Rishikesh–Kedarnath\n• NH-34: Tanakpur–Pithoragarh\n\n**Report road damage** → Complaints tab → Pothole / Other\n\n⚠️ Mountain roads may close during heavy rain/landslides — check before travel!";
-  }
-
-  if (/thank|thanks|goodbye|bye|धन्यवाद|शुक्रिया/.test(msg)) {
-    return "🙏 **Dhanyavaad!** Thank you for using SANKALP AI.\n\nRemember — every complaint you report helps make Uttarakhand cleaner, safer, and better connected.\n\n🌟 Your civic participation earns points on our **Leaderboard**!\n\n_देवभूमि की सेवा में, जन भागीदारी से_ — With public participation, we serve Devbhoomi.\n\nStay safe in the hills and feel free to ask anything anytime! 🏔️🇮🇳";
-  }
-
-  if (/point|badge|leaderboard|reward|rank|gamif/.test(msg)) {
-    return "🏆 **SANKALP AI — Civic Rewards**\n\nEarn points for civic participation:\n🔹 Report a complaint: **+10 pts**\n🔹 Complaint resolved: **+5 pts**\n🔹 Upvote others: **+1 pt**\n🔹 First report in area: **+20 pts**\n\n**Badges:**\n🥇 New Citizen, Problem Solver, Community Hero, Block Champion, Devbhoomi Guardian\n\nView your rank on the **Profile** tab → Leaderboard.\n\n_देवभूमि बदलेगी, जब जन जागरुक होगा!_ 🌟";
-  }
-
-  const responses = [
-    `I understand you're asking about "${message.slice(0, 40)}". As SANKALP AI, I specialize in Uttarakhand civic services.\n\nHere's what I can help with:\n• 📋 Filing complaints (potholes, garbage, water, electricity)\n• 🔍 Tracking complaint status\n• 🆘 Emergency helplines & SOS\n• 🏛️ Government schemes & services\n• 📊 Uttarakhand district statistics\n• 🗺️ Finding local facilities\n\nCould you rephrase or choose from the quick options below?`,
-    `Great question! For "${message.slice(0, 30)}..." I recommend:\n\n1. **Check the Complaints tab** for civic issues\n2. **Call CM Helpline: 1905** for government queries\n3. **Visit cm.uk.gov.in** for official information\n\nI'm continuously learning to serve Uttarakhand citizens better. Is there a specific area I can help you with?`,
+  const fallbacks = [
+    `Good question${name}! I want to make sure I give you the most useful answer.\n\nI specialise in civic services for ${district} — complaint filing, status tracking, emergency helplines, government schemes, and women safety. Could you tell me a bit more about what you need? I'm listening.`,
+    `I hear you${name}. Let me help you find the right answer.\n\nFor anything civic in ${district} — potholes, water, power, safety — I can guide you step by step. For government schemes or emergency helplines, just ask. What's the issue you're facing?`,
   ];
-  return responses[Math.floor(Math.random() * responses.length)];
+  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
 function getToken(req: Request): string | null {
@@ -499,21 +563,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { message, history } = req.body;
     if (!message) return res.status(400).json({ message: "message required" });
 
-    const systemPrompt = "You are SANKALP AI, the official civic intelligence assistant for Uttarakhand, India (Devbhoomi). Help citizens with: filing and tracking civic complaints (potholes, garbage, water, electricity, streetlights, drains, trees), emergency SOS services, government schemes (CM Swarojgar Yojana, Ayushman Bharat, Gaura Devi Kanya Dhan, Veer CS Garhwali Paryatan Yojana), all 13 Uttarakhand districts (Dehradun, Haridwar, Tehri Garhwal, Pauri Garhwal, Rudraprayag, Chamoli, Uttarkashi, Pithoragarh, Bageshwar, Almora, Champawat, Nainital, Udham Singh Nagar), helplines (Police 100, Ambulance 108, Women 1090, Disaster 1070, CM Helpline 1905), Char Dham tourism, and civic participation. Respond in friendly, helpful English. Add relevant helpline numbers. Keep responses under 300 words.";
-
-    const msgs = [
-      { role: "system", content: systemPrompt },
-      ...(history || []).map((h: any) => ({ role: h.role === "ai" ? "assistant" : h.role, content: h.content })),
-      { role: "user", content: message },
-    ];
-
-    const nvReply = await callNvidiaChat(msgs);
-    if (nvReply) {
-      return res.json({ reply: nvReply, timestamp: new Date().toISOString(), powered_by: "NVIDIA Llama" });
-    }
-
-    const reply = generateAIReply(message, history || []);
-    res.json({ reply, timestamp: new Date().toISOString() });
+    const user = (req as any).user;
+    const reply = generateAIReply(message, history || [], user?.name, user?.district);
+    res.json({ reply, timestamp: new Date().toISOString(), powered_by: "SANKALP AI" });
   });
 
   // ── AI IMAGE ANALYSIS ─────────────────────────────────────────────────
@@ -521,20 +573,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { imageBase64, category } = req.body;
     if (!imageBase64) return res.status(400).json({ message: "imageBase64 required" });
 
-    const prompt = `You are a civic issue analyzer for Uttarakhand, India. Analyze this image and respond ONLY with valid JSON (no other text): {"severity":"Low/Medium/High/Critical","issueType":"pothole/garbage/streetlight/water/drain/electricity/other","description":"brief description under 60 words","priority":"P1/P2/P3/P4","department":"which government department handles this"}`;
+    const prompt = `You are an expert civic infrastructure analyst for Uttarakhand, India. Look at this photo carefully and identify the civic issue shown.
+
+Respond with ONLY a valid JSON object — no explanation, no markdown, just the JSON:
+{"severity":"Low/Medium/High/Critical","issueType":"pothole/garbage/streetlight/water/drain/electricity/tree/other","description":"Clear, specific 1-2 sentence description of what you see and why it needs attention","priority":"P1/P2/P3/P4","department":"The exact Uttarakhand government department responsible","estimatedFixTime":"e.g. 1-2 days / 1 week / 2-4 weeks"}
+
+P1 = immediate danger to life/safety. P2 = significant public impact. P3 = moderate inconvenience. P4 = minor issue.`;
 
     const raw = await callNvidiaVision(imageBase64, prompt);
     if (raw) {
       try {
-        const match = raw.match(/\{[\s\S]*\}/);
+        const match = raw.match(/\{[\s\S]*?\}/);
         if (match) {
-          return res.json({ analysis: JSON.parse(match[0]), raw, powered_by: "NVIDIA Vision" });
+          const parsed = JSON.parse(match[0]);
+          return res.json({ analysis: parsed, powered_by: "NVIDIA Vision LLaMA" });
         }
       } catch {}
-      return res.json({ analysis: { severity: "Medium", issueType: category || "other", description: raw.slice(0, 200), priority: "P3", department: "Municipal Corporation" }, raw });
+      return res.json({
+        analysis: { severity: "Medium", issueType: category || "other", description: raw.slice(0, 200), priority: "P3", department: "Municipal Corporation", estimatedFixTime: "1 week" },
+        powered_by: "NVIDIA Vision LLaMA",
+      });
     }
 
-    res.json({ analysis: { severity: "Medium", issueType: category || "other", description: "Photo received. Pending AI review.", priority: "P3", department: "Municipal Corporation" }, powered_by: "fallback" });
+    const catMap: Record<string, string> = {
+      pothole: "PWD Uttarakhand", garbage: "Urban Local Body", streetlight: "ULB Electric Wing",
+      water: "Uttarakhand Jal Sansthan", drain: "Uttarakhand Jal Sansthan",
+      electricity: "UPCL", tree: "Forest Department",
+    };
+    res.json({
+      analysis: {
+        severity: "Medium", issueType: category || "other",
+        description: "Photo received and logged. Our team will review and assess the issue shortly.",
+        priority: "P3", department: catMap[category] || "Municipal Corporation", estimatedFixTime: "3-5 days",
+      },
+      powered_by: "fallback",
+    });
   });
 
   return httpServer;
