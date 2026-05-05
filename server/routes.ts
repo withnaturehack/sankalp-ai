@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "";
 const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
 
 async function callNvidiaChat(messages: Array<{ role: string; content: string }>, model = "meta/llama-3.1-8b-instruct", maxTokens = 512): Promise<string | null> {
