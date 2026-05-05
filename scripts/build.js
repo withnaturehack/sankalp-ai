@@ -453,6 +453,29 @@ function updateBundleUrls(timestamp, baseUrl) {
   console.log("Updated bundle URLs");
 }
 
+// Recursively replace all Metro localhost URLs (127.0.0.1:8081 or localhost:8081)
+// with the production base URL so Expo Go doesn't try to connect to the phone's own localhost
+function fixLocalhostUrls(obj, baseUrl) {
+  if (typeof obj === "string") {
+    return obj
+      .replace(/http:\/\/127\.0\.0\.1:8081\/assets\//g, `${baseUrl}/assets/`)
+      .replace(/http:\/\/localhost:8081\/assets\//g, `${baseUrl}/assets/`)
+      .replace(/http:\/\/127\.0\.0\.1:8081\//g, `${baseUrl}/`)
+      .replace(/http:\/\/localhost:8081\//g, `${baseUrl}/`);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => fixLocalhostUrls(item, baseUrl));
+  }
+  if (obj !== null && typeof obj === "object") {
+    const result = {};
+    for (const key of Object.keys(obj)) {
+      result[key] = fixLocalhostUrls(obj[key], baseUrl);
+    }
+    return result;
+  }
+  return obj;
+}
+
 function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
   const updateForPlatform = (platform, manifest) => {
     if (!manifest.launchAsset || !manifest.extra) {
@@ -483,6 +506,9 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
         asset.url = `${baseUrl}/${timestamp}/_expo/static/js/${assetInfo.relativePath}/${assetInfo.filename}`;
       });
     }
+
+    // Fix any remaining Metro localhost URLs (e.g. splash.imageUrl, icon URLs)
+    manifest = fixLocalhostUrls(manifest, baseUrl);
 
     fs.writeFileSync(
       path.join("static-build", platform, "manifest.json"),
