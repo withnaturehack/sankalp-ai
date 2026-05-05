@@ -83,6 +83,12 @@ export default function ProfileScreen() {
   }, [progress]);
 
   const handleLogout = () => {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("Sign out of SANKALP AI?\n\nAre you sure you want to sign out?")) {
+        logout();
+      }
+      return;
+    }
     Alert.alert("Sign Out", "Are you sure you want to sign out of SANKALP AI?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: logout },

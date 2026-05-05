@@ -314,9 +314,23 @@ export default function BillsScreen() {
                   <Text style={styles.modalAmountLabel}>Due Date</Text>
                   <Text style={styles.modalAmountSub}>{new Date(selectedBill.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</Text>
                 </View>
-                <View style={styles.payMethodRow}>
-                  <Ionicons name="phone-portrait-outline" size={16} color={Colors.green} />
-                  <Text style={styles.payMethodText}>UPI · Net Banking · Debit/Credit Card</Text>
+                <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1, marginTop: 14, marginBottom: 10 }}>CHOOSE PAYMENT METHOD</Text>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                  {[
+                    { icon: "📱", label: "UPI", sub: "PhonePe · GPay" },
+                    { icon: "💳", label: "Card", sub: "Debit/Credit" },
+                    { icon: "🏦", label: "Net Banking", sub: "All banks" },
+                  ].map((m, i) => (
+                    <Pressable key={m.label} style={{ flex: 1, backgroundColor: i === 0 ? "#22C55E22" : Colors.bgCard, borderRadius: 12, padding: 10, alignItems: "center", borderWidth: i === 0 ? 1.5 : 1, borderColor: i === 0 ? "#22C55E55" : Colors.border, gap: 3 }}>
+                      <Text style={{ fontSize: 20 }}>{m.icon}</Text>
+                      <Text style={{ color: i === 0 ? "#22C55E" : "#fff", fontSize: 11, fontFamily: "Inter_700Bold" }}>{m.label}</Text>
+                      <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>{m.sub}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#22C55E11", borderRadius: 10, padding: 10, marginBottom: 16 }}>
+                  <Ionicons name="shield-checkmark" size={14} color="#22C55E" />
+                  <Text style={{ flex: 1, color: "#22C55E", fontSize: 11, fontFamily: "Inter_500Medium" }}>256-bit encrypted · RBI compliant · Uttarakhand e-Pay Gateway</Text>
                 </View>
                 <View style={styles.modalBtns}>
                   <Pressable onPress={closeModal} style={styles.cancelBtn}>

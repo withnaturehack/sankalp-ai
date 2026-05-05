@@ -35,6 +35,28 @@ const STATUS_META: Record<string, { color: string; bg: string }> = {
   closed:      { color: "#6B7280", bg: "#F9FAFB" },
 };
 
+const BEFORE_PHOTOS: Record<string, string> = {
+  pothole:     "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=200&fit=crop",
+  garbage:     "https://images.unsplash.com/photo-1605600659908-0ef719419d41?w=400&h=200&fit=crop",
+  streetlight: "https://images.unsplash.com/photo-1536240478700-b869ad10e093?w=400&h=200&fit=crop",
+  water:       "https://images.unsplash.com/photo-1504893524553-b855bce32c67?w=400&h=200&fit=crop",
+  drain:       "https://images.unsplash.com/photo-1621451537084-482c73073a0f?w=400&h=200&fit=crop",
+  electricity: "https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=400&h=200&fit=crop",
+  tree:        "https://images.unsplash.com/photo-1541795795328-f073b763494e?w=400&h=200&fit=crop",
+  other:       "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?w=400&h=200&fit=crop",
+};
+
+const AFTER_PHOTOS: Record<string, string> = {
+  pothole:     "https://images.unsplash.com/photo-1590486803833-1c5dc8ddd4c8?w=400&h=200&fit=crop",
+  garbage:     "https://images.unsplash.com/photo-1534759926370-e4b08f282c9e?w=400&h=200&fit=crop",
+  streetlight: "https://images.unsplash.com/photo-1505673542670-a5e3ff5b14c3?w=400&h=200&fit=crop",
+  water:       "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&h=200&fit=crop",
+  drain:       "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=400&h=200&fit=crop",
+  electricity: "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=400&h=200&fit=crop",
+  tree:        "https://images.unsplash.com/photo-1535766571970-9376f5d1cd1e?w=400&h=200&fit=crop",
+  other:       "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&h=200&fit=crop",
+};
+
 function aiClassify(text: string): string {
   const lower = text.toLowerCase();
   if (/pothole|crack|road|broken|damage|bump/.test(lower)) return "pothole";
@@ -394,13 +416,45 @@ export default function ComplaintsScreen() {
                         ))}
                       </View>
 
-                      {selectedC.hasProof && (
+                      {/* Before / After Photos */}
+                      <View style={{ marginBottom: 14 }}>
+                        <Text style={[cs.statLabel, { marginBottom: 8, textAlign: "left" }]}>PHOTO EVIDENCE</Text>
                         <View style={cs.proofRow}>
-                          <View style={cs.proofImg}><Text style={{ fontSize: 20 }}>📷</Text><Text style={cs.proofLabel}>Before</Text></View>
-                          <Ionicons name="arrow-forward" size={16} color="#9CA3AF" />
-                          <View style={[cs.proofImg, { borderColor: "#A7F3D0" }]}><Text style={{ fontSize: 20 }}>✅</Text><Text style={[cs.proofLabel, { color: "#00A651" }]}>After</Text></View>
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <Image
+                              source={{ uri: BEFORE_PHOTOS[selectedC.category] || BEFORE_PHOTOS.other }}
+                              style={[cs.proofImg, { width: "100%", height: 90 }]}
+                              resizeMode="cover"
+                            />
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" }} />
+                              <Text style={[cs.proofLabel, { color: "#EF4444" }]}>Before</Text>
+                            </View>
+                          </View>
+                          <View style={{ alignItems: "center", gap: 4 }}>
+                            <Ionicons name="arrow-forward" size={16} color="#9CA3AF" />
+                            <Text style={{ fontSize: 8, color: "#9CA3AF", fontFamily: "Inter_400Regular" }}>AI Verified</Text>
+                          </View>
+                          <View style={{ flex: 1, gap: 4 }}>
+                            {selectedC.status === "resolved" ? (
+                              <Image
+                                source={{ uri: AFTER_PHOTOS[selectedC.category] || AFTER_PHOTOS.other }}
+                                style={[cs.proofImg, { width: "100%", height: 90, borderColor: "#A7F3D0" }]}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <View style={[cs.proofImg, { width: "100%", height: 90, borderStyle: "dashed" }]}>
+                                <Ionicons name="camera-outline" size={22} color="#9CA3AF" />
+                                <Text style={cs.proofLabel}>Pending</Text>
+                              </View>
+                            )}
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selectedC.status === "resolved" ? "#00A651" : "#9CA3AF" }} />
+                              <Text style={[cs.proofLabel, { color: selectedC.status === "resolved" ? "#00A651" : "#9CA3AF" }]}>After</Text>
+                            </View>
+                          </View>
                         </View>
-                      )}
+                      </View>
 
                       {selectedC.rating && (
                         <View style={cs.ratingBox}>

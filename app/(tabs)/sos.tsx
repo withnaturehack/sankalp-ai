@@ -1,8 +1,41 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, Component } from "react";
 import {
   View, Text, StyleSheet, Pressable, Animated, ScrollView,
   Modal, TextInput, Platform, ActivityIndicator, Alert, Vibration, Linking, AppState,
 } from "react-native";
+
+class SOSErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error: error?.message || "Unknown error" };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.warn("[SOSErrorBoundary]", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: "#0A0A0A", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>🆘</Text>
+          <Text style={{ color: "#EF4444", fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 8, textAlign: "center" }}>SOS Screen Error</Text>
+          <Text style={{ color: "#9CA3AF", fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, marginBottom: 24 }}>
+            {this.state.error}{"\n\n"}For emergencies, call 112 directly.
+          </Text>
+          <Pressable onPress={() => this.setState({ hasError: false, error: "" })} style={{ backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32 }}>
+            <Text style={{ color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" }}>Retry</Text>
+          </Pressable>
+          <Pressable onPress={() => Linking.openURL("tel:112")} style={{ marginTop: 12, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, borderWidth: 1, borderColor: "#EF444444", backgroundColor: "#EF444411" }}>
+            <Text style={{ color: "#EF4444", fontSize: 15, fontFamily: "Inter_700Bold" }}>Call 112 Emergency</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -118,7 +151,7 @@ function CountdownRing({ count, total = 5 }: { count: number; total?: number }) 
   );
 }
 
-export default function SOSScreen() {
+function SOSScreenInner() {
   const insets = useSafeAreaInsets();
   const { sosAlerts, triggerSOS, triggerWomenSafetySOS, policeStations, updateSOSLocation } = useApp();
 
@@ -1239,7 +1272,6 @@ const s = StyleSheet.create({
   holdBarTrack: { height: 6, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" },
   holdBarProgress: { height: "100%", backgroundColor: "#818CF8", borderRadius: 3 },
 
-  // Big method labels
   bigMethodTitle: { color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold", textAlign: "center" },
   bigMethodSub: { color: "rgba(255,255,255,0.45)", fontSize: 9, fontFamily: "Inter_400Regular", textAlign: "center" },
 
@@ -1275,3 +1307,11 @@ const s = StyleSheet.create({
   sendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14 },
   sendBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
 });
+
+export default function SOSScreen() {
+  return (
+    <SOSErrorBoundary>
+      <SOSScreenInner />
+    </SOSErrorBoundary>
+  );
+}

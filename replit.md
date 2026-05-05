@@ -14,9 +14,10 @@ A production-grade civic governance mobile app built with Expo/React Native. Act
   3. **HOLD 2s** — Large indigo card with fill bar animation (onPressIn/onPressOut setInterval)
   4. **SHAKE 3×** — Accelerometer at 80ms intervals, threshold 2.5, real-time count shown in green circle
   5. AppState rapid background/foreground (power button 3× in 2s)
+- **SOS Error Boundary**: Class-based `SOSErrorBoundary` wraps SOS screen; shows retry + "Call 112" fallback if screen crashes
 - **Admin Emergency Broadcast**: Admin sends state-wide alert to all citizen devices via WebSocket
 - **Uttarakhand Map**: Interactive district map with 13 district chips, UK geo bounds, complaints/SOS/workers/police markers
-- **Uttarakhand Gov Bills**: ULB Tax, UJN Water, UPCL Electricity, Vehicle Tax with payment flow
+- **Uttarakhand Gov Bills**: ULB Tax, UJN Water, UPCL Electricity, Vehicle Tax — payment modal with UPI/Card/Net Banking selector + security badge
 - **Global Emergency Buzzer**: Overlay in root layout receives real-time broadcast alerts
 - **expo-location**: Real GPS in SOS and Map screens
 - **expo-sensors**: Accelerometer shake detection (3 shakes = panic trigger)
@@ -26,7 +27,15 @@ A production-grade civic governance mobile app built with Expo/React Native. Act
 - **Worker detail modal**: Worker cards → full modal with stats, assigned complaints, contact, performance
 - **Admin Announcements screen**: Dedicated admin screen to post and delete government notices
 - **Photo capture in complaints**: expo-image-picker integration (camera + gallery)
+- **Real before/after photos in reports**: Unsplash photos in complaint cards with Image components
 - **Emoji → Ionicons**: All emoji icons replaced with Ionicons throughout app
+- **News clickable detail modal**: All 6 UK_NEWS items have full article body; tapping opens a slide-up modal with full content
+- **8 Quick Services grid**: Dashboard quick nav expanded to 8 items in flexWrap grid (AI Chat, Live Map, Pay Bills, SOS Alert, Reports, Analytics, My Profile, Notices)
+- **Weather widget**: Dehradun weather card (24°C Sunny, AQI 68 Satisfactory) with blue mountain theme replacing old hazardous AQI
+- **Hindi language toggle (EN/HI)**: Dashboard reads `app_language` from AsyncStorage; greetings, city health label, quick access labels, activity labels, news section all show Hindi text when HI is active. Language switched in Profile → Language Settings
+- **Police stations in district admin**: DistrictAdminDashboard shows police station grid with live SOS count, officer count, call button
+- **Worker performance in district admin**: Worker performance section with star rating bars in district admin war room
+- **Web sign-out fix**: `handleLogout` in profile uses `window.confirm()` on web platform instead of Alert API
 
 ## Demo Credentials
 - **Super Admin:** Phone `9999999999` / PIN `000000` (sees all 13 Uttarakhand districts)

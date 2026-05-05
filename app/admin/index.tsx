@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Platform, Animated, RefreshControl, Modal, ActivityIndicator, TextInput, Alert,
+  Platform, Animated, RefreshControl, Modal, ActivityIndicator, TextInput, Alert, Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -651,7 +651,7 @@ export default function AdminDashboard() {
 // ── DISTRICT ADMIN WAR ROOM ────────────────────────────────────────────────────
 function DistrictAdminDashboard() {
   const insets = useSafeAreaInsets();
-  const { complaints, sosAlerts, riskZones, workers, isLoading, refresh, getStats, broadcastEmergency, resolveComplaint, rejectComplaint } = useApp();
+  const { complaints, sosAlerts, riskZones, workers, policeStations, isLoading, refresh, getStats, broadcastEmergency, resolveComplaint, rejectComplaint } = useApp();
   const { user, logout } = useAuth();
 
   const [emergencyMode, setEmergencyMode] = useState(false);
@@ -982,6 +982,96 @@ function DistrictAdminDashboard() {
             </View>
           ))}
         </View>
+
+        {/* Police Stations */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="shield-checkmark" size={16} color="#3B82F6" />
+            <Text style={styles.sectionTitle}>Police Stations — {user?.district}</Text>
+            <Pressable onPress={() => router.push("/admin/alerts")}>
+              <Text style={styles.seeAll}>View Alerts</Text>
+            </Pressable>
+          </View>
+          {policeStations.length === 0 && (
+            <Text style={{ color: Colors.textMuted, fontSize: 12, fontFamily: "Inter_400Regular", padding: 8 }}>No police stations data available</Text>
+          )}
+          {policeStations.slice(0, 6).map((ps, i) => {
+            const districtSos = activeAlerts.filter((s: any) => s.nearestPoliceStation === ps.name).length;
+            return (
+              <View key={ps.id} style={[{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 }, i > 0 && { borderTopWidth: 1, borderTopColor: Colors.border }]}>
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: districtSos > 0 ? "#EF444422" : "#3B82F622", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: districtSos > 0 ? "#EF444444" : "#3B82F644" }}>
+                  <Ionicons name="shield" size={16} color={districtSos > 0 ? "#EF4444" : "#3B82F6"} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" }} numberOfLines={1}>{ps.name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+                    <Ionicons name="call-outline" size={10} color={Colors.textMuted} />
+                    <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular" }}>{ps.phone}</Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 4 }}>
+                  {districtSos > 0 && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#EF444422", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Ionicons name="warning" size={9} color="#EF4444" />
+                      <Text style={{ color: "#EF4444", fontSize: 9, fontFamily: "Inter_700Bold" }}>{districtSos} SOS</Text>
+                    </View>
+                  )}
+                  <Pressable onPress={() => { Linking.openURL(`tel:${ps.phone.replace(/[^0-9]/g, "")}`); }} style={{ backgroundColor: "#3B82F622", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="call" size={10} color="#3B82F6" />
+                    <Text style={{ color: "#3B82F6", fontSize: 9, fontFamily: "Inter_700Bold" }}>CALL</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border }}>
+            <View style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: "center", gap: 2 }}>
+              <Text style={{ color: "#3B82F6", fontSize: 16, fontFamily: "Inter_700Bold" }}>{policeStations.length}</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>Stations</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: "center", gap: 2 }}>
+              <Text style={{ color: "#EF4444", fontSize: 16, fontFamily: "Inter_700Bold" }}>{activeSos.length}</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>Active SOS</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: "center", gap: 2 }}>
+              <Text style={{ color: "#22C55E", fontSize: 16, fontFamily: "Inter_700Bold" }}>24/7</Text>
+              <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>Response</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Worker Performance */}
+        {workers.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="people" size={16} color="#06B6D4" />
+              <Text style={styles.sectionTitle}>Field Workers</Text>
+              <Pressable onPress={() => router.push("/admin/workers")}><Text style={styles.seeAll}>View All ({workers.length})</Text></Pressable>
+            </View>
+            {workers.slice(0, 5).map((w, i) => (
+              <View key={w.id} style={[{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }, i > 0 && { borderTopWidth: 1, borderTopColor: Colors.border }]}>
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#06B6D422", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#06B6D444" }}>
+                  <Text style={{ fontSize: 16 }}>👷</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>{w.name}</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 }}>{w.role} · {w.ward}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 3 }}>
+                  <View style={[{ borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: w.status === "active" ? "#22C55E22" : "#F59E0B22" }]}>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: w.status === "active" ? "#22C55E" : "#F59E0B" }}>{w.status.toUpperCase()}</Text>
+                  </View>
+                  <View style={{ width: 60, height: 4, backgroundColor: Colors.border, borderRadius: 2, overflow: "hidden" }}>
+                    <View style={{ height: 4, backgroundColor: w.score >= 70 ? "#22C55E" : w.score >= 50 ? "#F59E0B" : "#EF4444", borderRadius: 2, width: `${w.score}%` }} />
+                  </View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" }}>{w.score}% score</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       {/* Complaint Detail Modal */}
