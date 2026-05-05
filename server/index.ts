@@ -15,10 +15,13 @@ declare module "http" {
 
 function setupCors(app: express.Application) {
   app.use((req, res, next) => {
-    const origins = new Set<string>();
+    const origins = new Set<string>([
+      "https://sankalp-ai.replit.app", // production domain — always allowed
+    ]);
 
     if (process.env.REPLIT_DEV_DOMAIN) {
       origins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+      origins.add(`https://8080-${process.env.REPLIT_DEV_DOMAIN}`);
     }
 
     if (process.env.REPLIT_DOMAINS) {
@@ -29,19 +32,18 @@ function setupCors(app: express.Application) {
 
     const origin = req.header("origin");
 
-    // Allow localhost origins for Expo web development (any port)
     const isLocalhost =
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
 
-    if (origin && (origins.has(origin) || isLocalhost)) {
-      res.header("Access-Control-Allow-Origin", origin);
-      res.header(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS",
-      );
+    // No origin = mobile/native app (Expo Go) — always allow
+    // Known origin = web browser — allow if in set or localhost
+    const allowed = !origin || origins.has(origin) || isLocalhost;
+    if (allowed) {
+      res.header("Access-Control-Allow-Origin", origin ?? "*");
+      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
       res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      res.header("Access-Control-Allow-Credentials", "true");
+      if (origin) res.header("Access-Control-Allow-Credentials", "true");
     }
 
     if (req.method === "OPTIONS") {
@@ -202,9 +204,11 @@ function configureExpoAndLanding(app: express.Application) {
     next();
   });
 
-  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
+  // Serve the built web bundle first so hashed asset filenames are resolved correctly
   app.use(express.static(path.resolve(process.cwd(), "static-build", "web")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
+  // Raw source assets as fallback (for icons, splash, etc. not hashed by Metro)
+  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }

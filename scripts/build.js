@@ -39,21 +39,24 @@ function stripProtocol(domain) {
 }
 
 function getDeploymentDomain() {
-  // Check Replit deployment environment variables first
-  if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
-    return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
-  }
-
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return stripProtocol(process.env.REPLIT_DEV_DOMAIN);
-  }
-
+  // 1. Explicit override wins (e.g. EXPO_PUBLIC_DOMAIN=sankalp-ai.replit.app set as shared env)
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
   }
 
+  // 2. Replit production deployment injects this
+  if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
+    return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
+  }
+
+  // 3. Last resort: dev domain (should not reach production bundles)
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    console.warn("WARNING: Using REPLIT_DEV_DOMAIN for production bundle. Set EXPO_PUBLIC_DOMAIN instead.");
+    return stripProtocol(process.env.REPLIT_DEV_DOMAIN);
+  }
+
   console.error(
-    "ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN",
+    "ERROR: No deployment domain found. Set EXPO_PUBLIC_DOMAIN to your production domain (e.g. sankalp-ai.replit.app)",
   );
   process.exit(1);
 }
