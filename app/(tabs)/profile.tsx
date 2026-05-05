@@ -186,12 +186,12 @@ export default function ProfileScreen() {
           <Text style={styles.cardTitle}>Quick Services</Text>
           <View style={styles.servicesGrid}>
             {[
-              { icon: "receipt-outline" as const,   label: "Pay Bills",   color: "#FF9933", nav: "/(tabs)/bills" },
-              { icon: "list-outline" as const,       label: "My Reports",  color: "#3B82F6", nav: "/(tabs)/complaints" },
-              { icon: "map-outline" as const,        label: "Live Map",    color: "#00A651", nav: "/(tabs)/map" },
-              { icon: "warning-outline" as const,    label: "SOS Alert",   color: "#EF4444", nav: "/(tabs)/sos" },
-              { icon: "chatbubbles-outline" as const, label: "AI Chat",    color: "#8B5CF6", nav: "/(tabs)/ai" },
-              { icon: "analytics-outline" as const,  label: "Analytics",  color: "#06B6D4", nav: "/(tabs)/analytics" },
+              { icon: "receipt-outline" as const,      label: "Pay Bills",    color: "#FF9933", nav: "/(tabs)/bills" },
+              { icon: "list-outline" as const,         label: "My Reports",   color: "#3B82F6", nav: "/(tabs)/complaints" },
+              { icon: "people-outline" as const,       label: "Community",    color: "#8B5CF6", nav: "/(tabs)/community" },
+              { icon: "document-text-outline" as const, label: "File RTI",   color: "#00A651", nav: "/(tabs)/rti" },
+              { icon: "warning-outline" as const,      label: "SOS Alert",    color: "#EF4444", nav: "/(tabs)/sos" },
+              { icon: "analytics-outline" as const,    label: "Analytics",    color: "#06B6D4", nav: "/(tabs)/analytics" },
             ].map((s, i) => (
               <Pressable key={i} onPress={() => router.push(s.nav as any)}
                 style={({ pressed }) => [styles.serviceCard, { borderColor: s.color + "25", opacity: pressed ? 0.75 : 1 }]}>

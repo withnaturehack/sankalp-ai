@@ -576,6 +576,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  // ── SLA AUTO-ESCALATION ───────────────────────────────────────────────
+  setInterval(() => {
+    const now = Date.now();
+    const SLA_HOURS: Record<string, number> = { P1: 24, P2: 48, P3: 72, P4: 168 };
+    storage.getComplaints().forEach(c => {
+      if (c.status === "pending" || c.status === "in_progress") {
+        const hoursElapsed = (now - new Date(c.submittedAt).getTime()) / 3600000;
+        const sla = SLA_HOURS[c.priority] || 72;
+        if (hoursElapsed > sla) {
+          broadcast({ type: "sla_breach", complaintId: c.id, ticketId: (c as any).ticketId, priority: c.priority, hoursElapsed: Math.round(hoursElapsed), slaHours: sla, timestamp: new Date().toISOString() });
+          storage.addAuditLog("sla_breach", "system", "SANKALP System", `SLA breached: ${Math.round(hoursElapsed)}h > ${sla}h limit`, c.id);
+        }
+      }
+    });
+  }, 5 * 60 * 1000);
+
+  // ── POLLS ─────────────────────────────────────────────────────────────
+  app.get("/api/polls", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const district = user.role === "super_admin" ? undefined : user.district;
+    res.json(storage.getPolls(district));
+  });
+
+  app.post("/api/polls", requireAdmin, (req, res) => {
+    const user = (req as any).user;
+    const { question, options, expiresAt } = req.body;
+    if (!question || !options || options.length < 2) return res.status(400).json({ message: "question and at least 2 options required" });
+    const poll = storage.createPoll({ question, options, votes: options.map(() => 0), voterIds: [], district: user.role === "super_admin" ? undefined : user.district, createdAt: new Date().toISOString(), createdBy: user.name, status: "active", expiresAt });
+    res.status(201).json(poll);
+  });
+
+  app.put("/api/polls/:id/vote", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const { optionIndex } = req.body;
+    if (optionIndex === undefined || optionIndex === null) return res.status(400).json({ message: "optionIndex required" });
+    const poll = storage.votePoll(req.params.id, optionIndex, user.id);
+    if (!poll) return res.status(404).json({ message: "Poll not found or closed" });
+    res.json(poll);
+  });
+
+  // ── PETITIONS ─────────────────────────────────────────────────────────
+  app.get("/api/petitions", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const district = user.role === "super_admin" ? undefined : user.district;
+    res.json(storage.getPetitions(district));
+  });
+
+  app.post("/api/petitions", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const { title, description, target, goalSignatures, department } = req.body;
+    if (!title || !description || !target) return res.status(400).json({ message: "title, description, target required" });
+    const petition = storage.createPetition({ title, description, target, goalSignatures: goalSignatures || 500, signerIds: [], district: user.district, createdAt: new Date().toISOString(), createdBy: user.name, status: "active", department: department || "District Administration" });
+    res.status(201).json(petition);
+  });
+
+  app.put("/api/petitions/:id/sign", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const petition = storage.signPetition(req.params.id, user.id);
+    if (!petition) return res.status(404).json({ message: "Petition not found or closed" });
+    res.json(petition);
+  });
+
+  // ── RTI ───────────────────────────────────────────────────────────────
+  app.get("/api/rti", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    if (user.role === "citizen") {
+      return res.json(storage.getRTIsByPhone(user.phone));
+    }
+    const district = user.role === "super_admin" ? undefined : user.district;
+    res.json(storage.getRTIs(undefined, district));
+  });
+
+  app.post("/api/rti", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const { subject, description, department } = req.body;
+    if (!subject || !description || !department) return res.status(400).json({ message: "subject, description, department required" });
+    const rti = storage.createRTI({ subject, description, department, filedBy: user.name, filedByPhone: user.phone, district: user.district });
+    res.status(201).json(rti);
+  });
+
+  app.put("/api/rti/:id/respond", requireAdmin, (req, res) => {
+    const { response } = req.body;
+    if (!response) return res.status(400).json({ message: "response required" });
+    const rti = storage.respondRTI(req.params.id, response);
+    if (!rti) return res.status(404).json({ message: "RTI not found" });
+    res.json(rti);
+  });
+
+  // ── CIVIC EVENTS ──────────────────────────────────────────────────────
+  app.get("/api/events", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const district = user.role === "super_admin" ? undefined : user.district;
+    res.json(storage.getEvents(district));
+  });
+
+  app.post("/api/events", requireAdmin, (req, res) => {
+    const user = (req as any).user;
+    const { title, description, date, time, location, type } = req.body;
+    if (!title || !date || !location) return res.status(400).json({ message: "title, date, location required" });
+    const event = storage.createEvent({ title, description: description || "", date, time: time || "TBD", location, type: type || "meeting", district: user.role === "super_admin" ? undefined : user.district, organizer: user.name });
+    res.status(201).json(event);
+  });
+
+  app.put("/api/events/:id/rsvp", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const event = storage.rsvpEvent(req.params.id, user.id);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    res.json(event);
+  });
+
+  // ── COMPLAINT CHAT ────────────────────────────────────────────────────
+  app.get("/api/complaints/:id/chat", requireAuth, (req, res) => {
+    res.json(storage.getChatMessages(req.params.id));
+  });
+
+  app.post("/api/complaints/:id/chat", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ message: "message required" });
+    const role: "citizen" | "officer" = (user.role === "admin" || user.role === "super_admin") ? "officer" : "citizen";
+    const msg = storage.addChatMessage(req.params.id, message, user.name, role);
+    res.status(201).json(msg);
+  });
+
+  // ── BUDGET TRACKER ────────────────────────────────────────────────────
+  app.get("/api/budget", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const district = (req.query.district as string) || (user.role === "super_admin" ? undefined : user.district);
+    res.json(storage.getBudgetItems(district));
+  });
+
+  // ── AUDIT LOGS ────────────────────────────────────────────────────────
+  app.get("/api/audit", requireAdmin, (req, res) => {
+    const { complaintId } = req.query;
+    res.json(storage.getAuditLogs(complaintId as string | undefined));
+  });
+
+  app.get("/api/complaints/:id/audit", requireAuth, (req, res) => {
+    res.json(storage.getAuditLogs(req.params.id));
+  });
+
   // ── AI CHAT ───────────────────────────────────────────────────────────
   app.post("/api/ai/chat", requireAuth, async (req, res) => {
     const { message, history } = req.body;

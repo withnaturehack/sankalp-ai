@@ -621,14 +621,14 @@ export default function DashboardScreen() {
           <Text style={styles.sectionLabel}>{t("QUICK ACCESS", HI.quickAccess)}</Text>
           <View style={styles.quickGrid}>
             {[
-              { icon: "chatbubbles" as const,       label: t("AI Chat",    HI.aiChat),    color: "#FF9933", bg: "#FFF8E7", nav: "/(tabs)/ai" },
+              { icon: "chatbubbles" as const,         label: t("AI Chat",    HI.aiChat),    color: "#FF9933", bg: "#FFF8E7", nav: "/(tabs)/ai" },
               { icon: "map" as const,               label: t("Live Map",   HI.liveMap),   color: "#3B82F6", bg: "#EFF6FF", nav: "/(tabs)/map" },
               { icon: "receipt-outline" as const,   label: t("Pay Bills",  HI.payBills),  color: "#8B5CF6", bg: "#F5F3FF", nav: "/(tabs)/bills" },
               { icon: "warning-outline" as const,   label: t("SOS Alert",  HI.sosAlert),  color: "#EF4444", bg: "#FEF2F2", nav: "/(tabs)/sos" },
               { icon: "document-text" as const,     label: t("Reports",    HI.reports),   color: "#00A651", bg: "#F0FFF4", nav: "/(tabs)/complaints" },
+              { icon: "people" as const,            label: "Community",                   color: "#6366F1", bg: "#EEF2FF", nav: "/(tabs)/community" },
+              { icon: "document-lock" as const,     label: "File RTI",                    color: "#059669", bg: "#ECFDF5", nav: "/(tabs)/rti" },
               { icon: "analytics" as const,         label: t("Analytics",  HI.analytics), color: "#06B6D4", bg: "#F0FDFF", nav: "/(tabs)/analytics" },
-              { icon: "trophy" as const,            label: t("My Profile", HI.myProfile), color: "#F59E0B", bg: "#FFFBEB", nav: "/(tabs)/profile" },
-              { icon: "megaphone-outline" as const, label: t("Notices",    HI.noticesNav),color: "#6B7280", bg: "#F9FAFB", nav: "/(tabs)/ai" },
             ].map(item => (
               <Pressable key={item.label} onPress={() => router.push(item.nav as any)} style={[styles.quickCard, { backgroundColor: item.bg, borderColor: item.color + "30" }]}>
                 <View style={[styles.quickCardIcon, { backgroundColor: item.color + "18" }]}>

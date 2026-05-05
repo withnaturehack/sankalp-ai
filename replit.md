@@ -6,6 +6,24 @@ A production-grade civic governance mobile app built with Expo/React Native. Act
 **Tagline:** "Uttarakhand's Civic Nervous System"
 
 ## Key Features Implemented
+
+### New Features (Wave 2)
+- **Community Screen** (`app/(tabs)/community.tsx`): Polls (vote inline, live %), Petitions (sign + create new), Civic Events (RSVP) — 3 tabs, modals, real API calls, seeded data
+- **RTI Portal** (`app/(tabs)/rti.tsx`): File RTI under RTI Act 2005, 30-day deadline tracking, department picker, how-it-works guide, full status lifecycle
+- **Sort bar on Complaints**: Latest / Priority / Upvotes / AI Score sort options
+- **Voice Input on Complaint Form**: Web Speech API; mic button in description field with live listening state
+- **SLA Breach Indicator**: P1=24h, P2=48h, P3=72h, P4=168h; red badge on cards + detail modal when SLA exceeded
+- **Officer Chat Modal**: "Message Officer" in complaint detail → chat thread with WebSocket broadcast
+- **Community tab in bottom nav** replacing old static layout
+- **Quick Access shortcuts to Community + RTI** on dashboard and profile
+- **SLA Auto-Escalation**: 5-min server interval checks all open complaints; broadcasts `sla_breach` events + writes audit logs
+- **8 new backend entities**: Poll, Petition, RTIRequest, CivicEvent, ChatMessage, BudgetItem, AuditLog — all seeded
+- **9 new API routes**: /api/polls (vote), /api/petitions (sign+create), /api/rti (file+respond), /api/events (rsvp), /api/complaints/:id/chat, /api/budget, /api/audit, /api/complaints/:id/audit
+- **Budget Tracker API**: ₹ allocated vs. spent per district/department/year (24 budget items seeded)
+- **Audit Log API**: Every RTI filed, SLA breach, status change logged with timestamp, user, action
+- **Filter chip contrast fix**: All status/category chips now use explicit white backgrounds + dark `#374151` text for full visibility
+
+### Previous Features (Wave 1)
 - **5-tab dashboard**: Dashboard, Complaints, Map, SOS, Bills + Profile
 - **Animated Login Splash Carousel**: 3-slide story-style splash with Uttarakhand-themed photos, progress bars, quotes, skip button — transitions to animated login form with Indian tricolor hero
 - **Women Safety SOS — 5 Panic Methods**:

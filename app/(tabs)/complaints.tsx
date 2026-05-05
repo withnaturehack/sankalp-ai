@@ -109,14 +109,16 @@ function ComplaintCard({ item, onPress, onUpvote, userId, index = 0 }: {
     onUpvote();
   };
 
+  const slaHours: Record<string, number> = { P1: 24, P2: 48, P3: 72, P4: 168 };
+  const hoursElapsed = (Date.now() - new Date(item.submittedAt).getTime()) / 3600000;
+  const sla = slaHours[item.priority] || 72;
+  const isBreached = (item.status === "pending" || item.status === "in_progress") && hoursElapsed > sla;
+
   return (
     <Animated.View style={{ opacity, transform: [{ translateY: slideY }] }}>
-      <Pressable onPress={onPress} style={cs.card}>
-        {/* Left colored bar */}
+      <Pressable onPress={onPress} style={[cs.card, isBreached && { borderColor: "#FCA5A5" }]}>
         <View style={[cs.catBar, { backgroundColor: col.color }]} />
-
         <View style={{ flex: 1, padding: 14 }}>
-          {/* Top row */}
           <View style={cs.cardTop}>
             <View style={[cs.catIconWrap, { backgroundColor: col.bg }]}>
               <Text style={{ fontSize: 14 }}>{col.icon}</Text>
@@ -134,17 +136,18 @@ function ComplaintCard({ item, onPress, onUpvote, userId, index = 0 }: {
               </View>
             </View>
           </View>
-
-          {/* Description */}
           <Text style={cs.cardDesc} numberOfLines={2}>{item.description}</Text>
-
-          {/* Bottom row */}
           <View style={cs.cardBottom}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flex: 1 }}>
               <Ionicons name="location-outline" size={11} color="#9CA3AF" />
               <Text style={cs.cardLoc} numberOfLines={1}>{item.location}</Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              {isBreached && (
+                <View style={{ backgroundColor: "#FEF2F2", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                  <Text style={{ color: "#EF4444", fontSize: 9, fontFamily: "Inter_700Bold" }}>SLA!</Text>
+                </View>
+              )}
               <View style={cs.aiScore}>
                 <Ionicons name="hardware-chip" size={9} color="#8B5CF6" />
                 <Text style={cs.aiScoreText}>{item.aiScore}%</Text>
@@ -168,6 +171,25 @@ function ComplaintCard({ item, onPress, onUpvote, userId, index = 0 }: {
   );
 }
 
+type SortKey = "latest" | "priority" | "upvotes" | "ai_score";
+
+function startVoiceInput(onResult: (text: string) => void, onEnd: () => void) {
+  if (Platform.OS !== "web") { Alert.alert("Voice Input", "Voice input is available on web. On mobile, please type your complaint."); onEnd(); return; }
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (!SpeechRecognition) { Alert.alert("Not Supported", "Voice input is not supported in this browser."); onEnd(); return; }
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-IN";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.onresult = (event: any) => {
+    const transcript = event.results[0][0].transcript;
+    onResult(transcript);
+  };
+  recognition.onend = () => onEnd();
+  recognition.onerror = () => onEnd();
+  recognition.start();
+}
+
 export default function ComplaintsScreen() {
   const insets = useSafeAreaInsets();
   const { complaints, submitComplaint, upvoteComplaint, resolveComplaint, rejectComplaint, isLoading, refresh } = useApp();
@@ -176,8 +198,13 @@ export default function ComplaintsScreen() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCat, setFilterCat] = useState("all");
+  const [sortKey, setSortKey] = useState<SortKey>("latest");
   const [showSubmit, setShowSubmit] = useState(false);
   const [selectedC, setSelectedC] = useState<Complaint | null>(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ senderName: string; senderRole: string; message: string; sentAt: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   const [newCat, setNewCat] = useState("pothole");
   const [newDesc, setNewDesc] = useState("");
@@ -186,6 +213,7 @@ export default function ComplaintsScreen() {
   const [newPhoto, setNewPhoto] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [aiDetected, setAiDetected] = useState("");
+  const [isListening, setIsListening] = useState(false);
 
   const [showResolution, setShowResolution] = useState(false);
   const [rating, setRating] = useState(0);
@@ -195,12 +223,22 @@ export default function ComplaintsScreen() {
 
   const userId = user?.id || user?.phone || "";
 
-  const filtered = complaints.filter(c => {
-    if (search && !c.description.toLowerCase().includes(search.toLowerCase()) && !c.ticketId.includes(search) && !c.location.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterStatus !== "all" && c.status !== filterStatus) return false;
-    if (filterCat !== "all" && c.category !== filterCat) return false;
-    return true;
-  });
+  const PRIORITY_ORDER: Record<string, number> = { P1: 0, P2: 1, P3: 2, P4: 3 };
+
+  const filtered = complaints
+    .filter(c => {
+      if (search && !c.description.toLowerCase().includes(search.toLowerCase()) && !c.ticketId.includes(search) && !c.location.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterStatus !== "all" && c.status !== filterStatus) return false;
+      if (filterCat !== "all" && c.category !== filterCat) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortKey === "latest") return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+      if (sortKey === "priority") return (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3);
+      if (sortKey === "upvotes") return b.upvotes - a.upvotes;
+      if (sortKey === "ai_score") return b.aiScore - a.aiScore;
+      return 0;
+    });
 
   useEffect(() => {
     if (newDesc.length > 15) {
@@ -208,6 +246,14 @@ export default function ComplaintsScreen() {
       if (detected) { setAiDetected(detected); setNewCat(detected); }
     }
   }, [newDesc]);
+
+  const handleVoiceInput = useCallback(() => {
+    setIsListening(true);
+    startVoiceInput(
+      (text) => { setNewDesc(prev => prev ? prev + " " + text : text); },
+      () => setIsListening(false)
+    );
+  }, []);
 
   const handlePickPhoto = useCallback(async () => {
     if (Platform.OS === "web") {
@@ -234,16 +280,17 @@ export default function ComplaintsScreen() {
       await submitComplaint({
         category: newCat as any, description: newDesc.trim(), location: newLoc.trim(),
         geo: { lat: 30.0668 + (Math.random() - 0.5) * 2.8, lng: 79.0193 + (Math.random() - 0.5) * 3.8 },
-        ward: "Dehradun", wardNumber: 1, priority: newPriority as any,
+        ward: user?.district || "Dehradun", wardNumber: 1, priority: newPriority as any,
         status: "pending", isCluster: false, hasProof: !!newPhoto,
       });
       setShowSubmit(false);
       setNewDesc(""); setNewLoc(""); setNewCat("pothole"); setNewPriority("P3"); setAiDetected(""); setNewPhoto(null);
     } catch (err: any) { Alert.alert("Error", err.message); }
     finally { setSubmitting(false); }
-  }, [newCat, newDesc, newLoc, newPriority, newPhoto, submitComplaint]);
+  }, [newCat, newDesc, newLoc, newPriority, newPhoto, submitComplaint, user]);
 
   const handleUpvote = useCallback(async (id: string) => { try { await upvoteComplaint(id); } catch {} }, [upvoteComplaint]);
+
   const handleConfirmResolution = useCallback(async () => {
     if (!selectedC) return;
     setResolving(true);
@@ -259,16 +306,63 @@ export default function ComplaintsScreen() {
     try { await rejectComplaint(selectedC.id); setSelectedC(null); setShowResolution(false); } catch {}
   }, [selectedC, rejectComplaint]);
 
+  const handleOpenChat = useCallback(async (complaint: Complaint) => {
+    setSelectedC(complaint);
+    setChatLoading(true);
+    setShowChatModal(true);
+    try {
+      const { getApiUrl } = await import("@/lib/query-client");
+      const token = (await import("@react-native-async-storage/async-storage")).default.getItem("token");
+      const tok = await token;
+      const res = await fetch(`${getApiUrl()}api/complaints/${complaint.id}/chat`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      });
+      if (res.ok) {
+        const msgs = await res.json();
+        if (msgs.length === 0) {
+          setChatMessages([{ senderName: "SANKALP System", senderRole: "system", message: `Your complaint ${complaint.ticketId} has been received. An officer will respond shortly.`, sentAt: complaint.submittedAt }]);
+        } else {
+          setChatMessages(msgs);
+        }
+      }
+    } catch { setChatMessages([]); }
+    finally { setChatLoading(false); }
+  }, []);
+
+  const handleSendChat = useCallback(async () => {
+    if (!chatInput.trim() || !selectedC) return;
+    const msg = chatInput.trim();
+    setChatInput("");
+    try {
+      const { getApiUrl } = await import("@/lib/query-client");
+      const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+      const tok = await AsyncStorage.getItem("token");
+      const res = await fetch(`${getApiUrl()}api/complaints/${selectedC.id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({ message: msg }),
+      });
+      if (res.ok) {
+        const newMsg = await res.json();
+        setChatMessages(prev => [...prev, newMsg]);
+      }
+    } catch {}
+  }, [chatInput, selectedC]);
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const SORT_OPTIONS: { key: SortKey; label: string; icon: string }[] = [
+    { key: "latest", label: "Latest", icon: "time" },
+    { key: "priority", label: "Priority", icon: "alert-circle" },
+    { key: "upvotes", label: "Upvotes", icon: "chevron-up" },
+    { key: "ai_score", label: "AI Score", icon: "hardware-chip" },
+  ];
 
   return (
     <View style={cs.container}>
       {/* Header */}
-      <LinearGradient
-        colors={["#BF360C", "#E64A19", "#FF8F00"]}
-        style={[cs.header, { paddingTop: topPad + 12 }]}
-      >
+      <LinearGradient colors={["#BF360C", "#E64A19", "#FF8F00"]} style={[cs.header, { paddingTop: topPad + 12 }]}>
         <View style={cs.headerContent}>
           <View>
             <Text style={cs.headerTitle}>Civic Reports</Text>
@@ -288,12 +382,12 @@ export default function ComplaintsScreen() {
       </LinearGradient>
 
       {/* Search */}
-      <View style={cs.searchWrap}>
+      <View style={cs.filterSection}>
         <View style={cs.searchBox}>
           <Ionicons name="search" size={16} color="#9CA3AF" />
           <TextInput
             style={cs.searchInput}
-            placeholder="Search by ticket, location..."
+            placeholder="Search ticket, location, description..."
             placeholderTextColor="#9CA3AF"
             value={search}
             onChangeText={setSearch}
@@ -304,38 +398,54 @@ export default function ComplaintsScreen() {
             </Pressable>
           )}
         </View>
+
+        {/* Sort Bar */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={cs.pillRow}>
+          {SORT_OPTIONS.map(s => {
+            const active = sortKey === s.key;
+            return (
+              <Pressable key={s.key} onPress={() => setSortKey(s.key)} style={[cs.sortPill, active && cs.sortPillActive]}>
+                <Ionicons name={s.icon as any} size={11} color={active ? "#E64A19" : "#6B7280"} />
+                <Text style={[cs.sortPillText, active && cs.sortPillTextActive]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Status Filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={cs.pillRow}>
+          {[
+            { key: "all", label: "All Status", color: "#6B7280" },
+            { key: "pending", label: "Pending", color: "#F59E0B" },
+            { key: "in_progress", label: "In Progress", color: "#3B82F6" },
+            { key: "resolved", label: "Resolved", color: "#00A651" },
+          ].map(s => {
+            const active = filterStatus === s.key;
+            return (
+              <Pressable key={s.key} onPress={() => setFilterStatus(s.key)} style={[cs.pill, active && { backgroundColor: s.color + "20", borderColor: s.color }]}>
+                {active && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: s.color }} />}
+                <Text style={[cs.pillText, active && { color: s.color, fontFamily: "Inter_700Bold" }]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Category Filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[cs.pillRow, { paddingBottom: 8 }]}>
+          <Pressable onPress={() => setFilterCat("all")} style={[cs.catPill, filterCat === "all" && { backgroundColor: "#F3F4F6", borderColor: "#374151" }]}>
+            <Text style={[cs.catPillText, filterCat === "all" && { color: "#111827", fontFamily: "Inter_700Bold" }]}>All</Text>
+          </Pressable>
+          {CATS.map(c => {
+            const active = filterCat === c.key;
+            return (
+              <Pressable key={c.key} onPress={() => setFilterCat(c.key)} style={[cs.catPill, active && { backgroundColor: c.bg, borderColor: c.color }]}>
+                <Text style={{ fontSize: 11 }}>{c.icon}</Text>
+                <Text style={[cs.catPillText, active && { color: c.color, fontFamily: "Inter_700Bold" }]}>{c.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
-
-      {/* Status filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 6 }}>
-        {[
-          { key: "all", label: "All", color: "#6B7280" },
-          { key: "pending", label: "Pending", color: "#F59E0B" },
-          { key: "in_progress", label: "In Progress", color: "#3B82F6" },
-          { key: "resolved", label: "Resolved", color: "#00A651" },
-        ].map(s => (
-          <Pressable key={s.key} onPress={() => setFilterStatus(s.key)}
-            style={[cs.pill, filterStatus === s.key && { backgroundColor: s.color + "18", borderColor: s.color }]}
-          >
-            <Text style={[cs.pillText, filterStatus === s.key && { color: s.color, fontFamily: "Inter_700Bold" }]}>
-              {s.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* Category filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 6, paddingBottom: 10 }}>
-        <Pressable onPress={() => setFilterCat("all")} style={[cs.catPill, filterCat === "all" && { backgroundColor: "#F3F4F6", borderColor: "#6B7280" }]}>
-          <Text style={[cs.catPillText, filterCat === "all" && { color: "#374151" }]}>All</Text>
-        </Pressable>
-        {CATS.map(c => (
-          <Pressable key={c.key} onPress={() => setFilterCat(c.key)} style={[cs.catPill, filterCat === c.key && { backgroundColor: c.bg, borderColor: c.color }]}>
-            <Text style={{ fontSize: 11 }}>{c.icon}</Text>
-            <Text style={[cs.catPillText, filterCat === c.key && { color: c.color }]}>{c.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
 
       {/* List */}
       <FlatList
@@ -365,7 +475,7 @@ export default function ComplaintsScreen() {
       </Pressable>
 
       {/* Detail Modal */}
-      <Modal visible={!!selectedC} transparent animationType="slide" onRequestClose={() => setSelectedC(null)}>
+      <Modal visible={!!selectedC && !showChatModal} transparent animationType="slide" onRequestClose={() => setSelectedC(null)}>
         <Pressable style={cs.overlay} onPress={() => setSelectedC(null)}>
           <View style={cs.sheet}>
             <View style={cs.sheetHandle} />
@@ -374,6 +484,10 @@ export default function ComplaintsScreen() {
                 const col = CATS.find(c => c.key === selectedC.category) || CATS[7];
                 const st = STATUS_META[selectedC.status] || STATUS_META.closed;
                 const pr = PRIORITIES.find(p => p.key === selectedC.priority);
+                const hoursElapsed = Math.round((Date.now() - new Date(selectedC.submittedAt).getTime()) / 3600000);
+                const slaHours: Record<string, number> = { P1: 24, P2: 48, P3: 72, P4: 168 };
+                const sla = slaHours[selectedC.priority] || 72;
+                const slaBreached = (selectedC.status === "pending" || selectedC.status === "in_progress") && hoursElapsed > sla;
                 return (
                   <>
                     <LinearGradient colors={[col.color + "22", col.bg]} style={cs.detailHero}>
@@ -381,13 +495,18 @@ export default function ComplaintsScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={cs.detailTicket}>{selectedC.ticketId}</Text>
                         <Text style={cs.detailCat}>{col.label} · {selectedC.ward}</Text>
-                        <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                        <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                           <View style={[cs.badge, { backgroundColor: st.bg }]}>
                             <Text style={[cs.badgeText, { color: st.color }]}>{selectedC.status.replace("_", " ")}</Text>
                           </View>
                           <View style={[cs.badge, { backgroundColor: (pr?.color || "#6B7280") + "18" }]}>
                             <Text style={[cs.badgeText, { color: pr?.color || "#6B7280" }]}>{selectedC.priority}</Text>
                           </View>
+                          {slaBreached && (
+                            <View style={[cs.badge, { backgroundColor: "#FEF2F2" }]}>
+                              <Text style={[cs.badgeText, { color: "#EF4444" }]}>SLA Breached</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                       <Pressable onPress={() => setSelectedC(null)} style={cs.closeBtn}>
@@ -400,6 +519,14 @@ export default function ComplaintsScreen() {
                       <View style={cs.detailLocRow}>
                         <Ionicons name="location" size={14} color="#9CA3AF" />
                         <Text style={cs.detailLoc}>{selectedC.location}</Text>
+                      </View>
+
+                      {/* SLA Info */}
+                      <View style={[cs.slaRow, slaBreached && cs.slaRowBad]}>
+                        <Ionicons name="time" size={13} color={slaBreached ? "#EF4444" : "#6B7280"} />
+                        <Text style={[cs.slaText, slaBreached && { color: "#EF4444" }]}>
+                          {hoursElapsed}h elapsed · SLA: {sla}h · {slaBreached ? "⚠️ Overdue" : `${sla - hoursElapsed}h remaining`}
+                        </Text>
                       </View>
 
                       {/* Stats */}
@@ -421,11 +548,7 @@ export default function ComplaintsScreen() {
                         <Text style={[cs.statLabel, { marginBottom: 8, textAlign: "left" }]}>PHOTO EVIDENCE</Text>
                         <View style={cs.proofRow}>
                           <View style={{ flex: 1, gap: 4 }}>
-                            <Image
-                              source={{ uri: BEFORE_PHOTOS[selectedC.category] || BEFORE_PHOTOS.other }}
-                              style={[cs.proofImg, { width: "100%", height: 90 }]}
-                              resizeMode="cover"
-                            />
+                            <Image source={{ uri: BEFORE_PHOTOS[selectedC.category] || BEFORE_PHOTOS.other }} style={[cs.proofImg, { width: "100%", height: 90 }]} resizeMode="cover" />
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" }} />
                               <Text style={[cs.proofLabel, { color: "#EF4444" }]}>Before</Text>
@@ -437,11 +560,7 @@ export default function ComplaintsScreen() {
                           </View>
                           <View style={{ flex: 1, gap: 4 }}>
                             {selectedC.status === "resolved" ? (
-                              <Image
-                                source={{ uri: AFTER_PHOTOS[selectedC.category] || AFTER_PHOTOS.other }}
-                                style={[cs.proofImg, { width: "100%", height: 90, borderColor: "#A7F3D0" }]}
-                                resizeMode="cover"
-                              />
+                              <Image source={{ uri: AFTER_PHOTOS[selectedC.category] || AFTER_PHOTOS.other }} style={[cs.proofImg, { width: "100%", height: 90, borderColor: "#A7F3D0" }]} resizeMode="cover" />
                             ) : (
                               <View style={[cs.proofImg, { width: "100%", height: 90, borderStyle: "dashed" }]}>
                                 <Ionicons name="camera-outline" size={22} color="#9CA3AF" />
@@ -464,8 +583,16 @@ export default function ComplaintsScreen() {
                         </View>
                       )}
 
+                      {/* Chat Button */}
+                      <Pressable onPress={() => handleOpenChat(selectedC)} style={[cs.actionBtn, { borderColor: "#BFDBFE", marginBottom: 8 }]}>
+                        <Ionicons name="chatbubbles" size={16} color="#3B82F6" />
+                        <Text style={[cs.actionText, { color: "#3B82F6" }]}>Message Officer</Text>
+                        <View style={{ flex: 1 }} />
+                        <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+                      </Pressable>
+
                       {(selectedC.status === "pending" || selectedC.status === "in_progress") && (
-                        <View style={{ gap: 8, marginTop: 8 }}>
+                        <View style={{ gap: 8, marginTop: 4 }}>
                           <Pressable onPress={() => handleUpvote(selectedC.id)} style={cs.actionBtn}>
                             <Ionicons name="chevron-up" size={16} color="#00A651" />
                             <Text style={[cs.actionText, { color: "#00A651" }]}>Upvote ({selectedC.upvotes})</Text>
@@ -476,6 +603,7 @@ export default function ComplaintsScreen() {
                           </Pressable>
                         </View>
                       )}
+
                       {selectedC.status === "resolved" && !selectedC.rating && (
                         <View style={{ gap: 8, marginTop: 8 }}>
                           <Pressable onPress={() => setShowResolution(true)} style={[cs.actionBtn, { borderColor: "#A7F3D0" }]}>
@@ -496,6 +624,68 @@ export default function ComplaintsScreen() {
             </ScrollView>
           </View>
         </Pressable>
+      </Modal>
+
+      {/* Chat Modal */}
+      <Modal visible={showChatModal} transparent animationType="slide" onRequestClose={() => { setShowChatModal(false); }}>
+        <View style={cs.overlay}>
+          <View style={[cs.sheet, { height: "80%" }]}>
+            <View style={cs.sheetHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 12 }}>
+              <Ionicons name="chatbubbles" size={20} color="#3B82F6" />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={{ color: "#111827", fontSize: 16, fontFamily: "Inter_700Bold" }}>Message Officer</Text>
+                <Text style={{ color: "#9CA3AF", fontSize: 11, fontFamily: "Inter_400Regular" }}>{selectedC?.ticketId}</Text>
+              </View>
+              <Pressable onPress={() => setShowChatModal(false)} style={cs.closeBtn}>
+                <Ionicons name="close" size={18} color="#6B7280" />
+              </Pressable>
+            </View>
+            <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
+              {chatLoading ? (
+                <View style={{ padding: 40, alignItems: "center" }}>
+                  <ActivityIndicator color="#3B82F6" />
+                  <Text style={{ color: "#9CA3AF", marginTop: 8, fontSize: 12, fontFamily: "Inter_400Regular" }}>Loading messages...</Text>
+                </View>
+              ) : chatMessages.length === 0 ? (
+                <View style={{ padding: 40, alignItems: "center" }}>
+                  <Text style={{ fontSize: 36 }}>💬</Text>
+                  <Text style={{ color: "#374151", fontSize: 14, fontFamily: "Inter_600SemiBold", marginTop: 8 }}>No messages yet</Text>
+                  <Text style={{ color: "#9CA3AF", fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 4 }}>Send a message to communicate with the responsible officer</Text>
+                </View>
+              ) : chatMessages.map((msg, i) => {
+                const isOfficer = msg.senderRole === "officer" || msg.senderRole === "system";
+                return (
+                  <View key={i} style={{ flexDirection: isOfficer ? "row" : "row-reverse", gap: 8, marginBottom: 12, alignItems: "flex-end" }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isOfficer ? "#EFF6FF" : "#F0FFF4", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 14 }}>{isOfficer ? "👮" : "👤"}</Text>
+                    </View>
+                    <View style={{ maxWidth: "75%" }}>
+                      <View style={{ backgroundColor: isOfficer ? "#EFF6FF" : "#E64A19", borderRadius: 12, padding: 10, borderBottomLeftRadius: isOfficer ? 4 : 12, borderBottomRightRadius: isOfficer ? 12 : 4 }}>
+                        <Text style={{ color: isOfficer ? "#1E40AF" : "#fff", fontSize: 13, fontFamily: "Inter_400Regular" }}>{msg.message}</Text>
+                      </View>
+                      <Text style={{ color: "#9CA3AF", fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 3, textAlign: isOfficer ? "left" : "right" }}>{msg.senderName}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+            <View style={{ flexDirection: "row", gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: "#F3F4F6" }}>
+              <TextInput
+                style={[cs.searchInput, { flex: 1, backgroundColor: "#F9FAFB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#E5E7EB" }]}
+                placeholder="Type your message..."
+                placeholderTextColor="#9CA3AF"
+                value={chatInput}
+                onChangeText={setChatInput}
+                onSubmitEditing={handleSendChat}
+              />
+              <Pressable onPress={handleSendChat} style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: "#E64A19", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="send" size={16} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Resolution Modal */}
@@ -551,17 +741,31 @@ export default function ComplaintsScreen() {
               </View>
 
               <View style={{ paddingHorizontal: 20 }}>
-                {/* Description */}
+                {/* Description + Voice */}
                 <Text style={cs.fieldLabel}>WHAT'S THE PROBLEM? *</Text>
-                <TextInput
-                  style={cs.textArea}
-                  placeholder="Describe the issue clearly (e.g. Large pothole on Main Street near Sector 5 bus stop)..."
-                  placeholderTextColor="#9CA3AF"
-                  value={newDesc}
-                  onChangeText={setNewDesc}
-                  multiline
-                  numberOfLines={3}
-                />
+                <View style={{ position: "relative" }}>
+                  <TextInput
+                    style={[cs.textArea, { paddingRight: 48 }]}
+                    placeholder="Describe the issue clearly..."
+                    placeholderTextColor="#9CA3AF"
+                    value={newDesc}
+                    onChangeText={setNewDesc}
+                    multiline
+                    numberOfLines={3}
+                  />
+                  <Pressable
+                    onPress={handleVoiceInput}
+                    style={{ position: "absolute", right: 10, bottom: 18, width: 34, height: 34, borderRadius: 17, backgroundColor: isListening ? "#E64A19" : "#F3F4F6", alignItems: "center", justifyContent: "center" }}
+                  >
+                    <Ionicons name={isListening ? "radio" : "mic"} size={16} color={isListening ? "#fff" : "#6B7280"} />
+                  </Pressable>
+                </View>
+                {isListening && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF8E7", borderRadius: 8, padding: 8, marginTop: 4, marginBottom: 4 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#E64A19" }} />
+                    <Text style={{ color: "#E64A19", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Listening... speak now</Text>
+                  </View>
+                )}
                 {aiDetected && (
                   <View style={cs.aiDetectRow}>
                     <Text style={{ fontSize: 14 }}>🤖</Text>
@@ -632,7 +836,6 @@ export default function ComplaintsScreen() {
                     </View>
                   )}
                 </Pressable>
-
                 <View style={{ height: 20 }} />
               </View>
             </View>
@@ -652,13 +855,23 @@ const cs = StyleSheet.create({
   headerStats: { gap: 6 },
   statPill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" },
   statPillText: { color: "#FCD34D", fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  searchWrap: { padding: 16, paddingBottom: 8 },
-  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
+
+  filterSection: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F3F4F6", paddingTop: 12 },
+  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", marginHorizontal: 16, marginBottom: 10 },
   searchInput: { flex: 1, color: "#111827", fontSize: 14, fontFamily: "Inter_400Regular" },
-  pill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB" },
-  pillText: { color: "#9CA3AF", fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "capitalize" },
-  catPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB" },
-  catPillText: { color: "#9CA3AF", fontSize: 11, fontFamily: "Inter_500Medium" },
+  pillRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 8, flexDirection: "row" },
+
+  pill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB" },
+  pillText: { color: "#374151", fontSize: 12, fontFamily: "Inter_500Medium" },
+
+  sortPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB" },
+  sortPillActive: { backgroundColor: "#FFF3E0", borderColor: "#E64A19" },
+  sortPillText: { color: "#6B7280", fontSize: 11, fontFamily: "Inter_500Medium" },
+  sortPillTextActive: { color: "#E64A19", fontFamily: "Inter_700Bold" },
+
+  catPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB" },
+  catPillText: { color: "#374151", fontSize: 11, fontFamily: "Inter_500Medium" },
+
   card: { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", flexDirection: "row", borderWidth: 1, borderColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   catBar: { width: 4 },
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 6 },
@@ -689,8 +902,11 @@ const cs = StyleSheet.create({
   detailCat: { color: "#6B7280", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
   detailDesc: { color: "#374151", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22, marginBottom: 10 },
-  detailLocRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 },
+  detailLocRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
   detailLoc: { color: "#9CA3AF", fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  slaRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9FAFB", borderRadius: 8, padding: 8, marginBottom: 14 },
+  slaRowBad: { backgroundColor: "#FEF2F2" },
+  slaText: { color: "#6B7280", fontSize: 11, fontFamily: "Inter_500Medium" },
   statsRow: { flexDirection: "row", gap: 8, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 14, marginBottom: 14 },
   statBox: { flex: 1, alignItems: "center" },
   statVal: { fontSize: 18, fontFamily: "Inter_700Bold" },
@@ -710,10 +926,10 @@ const cs = StyleSheet.create({
   gpsText: { color: "#00A651", fontSize: 12, fontFamily: "Inter_500Medium" },
   proofAddedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FFF4", borderRadius: 10, padding: 12, marginHorizontal: 20, marginBottom: 8 },
   proofAddedText: { color: "#00A651", fontSize: 13, fontFamily: "Inter_500Medium" },
-  textArea: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, color: "#111827", fontSize: 14, fontFamily: "Inter_400Regular", borderWidth: 1, borderColor: "#E5E7EB", minHeight: 80, textAlignVertical: "top", marginHorizontal: 20, marginBottom: 8 },
-  cancelBtn: { flex: 1, backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB", marginHorizontal: 20 },
+  textArea: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, color: "#111827", fontSize: 14, fontFamily: "Inter_400Regular", borderWidth: 1, borderColor: "#E5E7EB", minHeight: 80, textAlignVertical: "top", marginBottom: 8 },
+  cancelBtn: { flex: 1, backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB", marginLeft: 20 },
   cancelText: { color: "#6B7280", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  confirmBtn: { flex: 2, backgroundColor: "#00A651", borderRadius: 12, padding: 14, alignItems: "center", marginHorizontal: 20 },
+  confirmBtn: { flex: 2, backgroundColor: "#00A651", borderRadius: 12, padding: 14, alignItems: "center", marginRight: 20 },
   confirmText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
   fieldLabel: { color: "#6B7280", fontSize: 10, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, marginTop: 12 },
   catGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
@@ -732,6 +948,6 @@ const cs = StyleSheet.create({
   photoPickerSub: { color: "#9CA3AF", fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   submitBtn: { backgroundColor: "#E64A19", borderRadius: 14, padding: 18, alignItems: "center", marginTop: 4 },
   submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
-  aiDetectRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF8E7", borderRadius: 10, padding: 10, marginHorizontal: 20, marginBottom: 8 },
+  aiDetectRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF8E7", borderRadius: 10, padding: 10, marginBottom: 8 },
   aiDetectText: { color: "#6B7280", fontSize: 12, fontFamily: "Inter_500Medium" },
 });

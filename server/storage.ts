@@ -160,6 +160,93 @@ export interface Announcement {
   views: number;
 }
 
+export interface Poll {
+  id: string;
+  question: string;
+  options: string[];
+  votes: number[];
+  voterIds: string[];
+  district?: string;
+  createdAt: string;
+  expiresAt?: string;
+  createdBy: string;
+  status: "active" | "closed";
+}
+
+export interface Petition {
+  id: string;
+  title: string;
+  description: string;
+  target: string;
+  goalSignatures: number;
+  signerIds: string[];
+  district?: string;
+  createdAt: string;
+  createdBy: string;
+  status: "active" | "closed" | "delivered";
+  department: string;
+}
+
+export interface RTIRequest {
+  id: string;
+  ticketId: string;
+  subject: string;
+  description: string;
+  department: string;
+  filedBy: string;
+  filedByPhone: string;
+  filedAt: string;
+  status: "filed" | "acknowledged" | "processing" | "responded" | "closed";
+  response?: string;
+  respondedAt?: string;
+  district: string;
+  deadline: string;
+}
+
+export interface CivicEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  location: string;
+  type: "meeting" | "camp" | "drive" | "scheme" | "emergency";
+  district?: string;
+  rsvpIds: string[];
+  organizer: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  complaintId: string;
+  message: string;
+  senderName: string;
+  senderRole: "citizen" | "officer" | "system";
+  sentAt: string;
+}
+
+export interface BudgetItem {
+  id: string;
+  department: string;
+  category: string;
+  allocated: number;
+  spent: number;
+  district: string;
+  year: number;
+  description: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  complaintId?: string;
+  userId: string;
+  userName: string;
+  timestamp: string;
+  details: string;
+}
+
 // ── UTTARAKHAND DISTRICTS & BLOCKS ────────────────────────────────────────────
 const DISTRICTS_DATA = [
   { district: "Dehradun",         center: { lat: 30.3165, lng: 78.0322 } },
@@ -387,6 +474,13 @@ class AppStorage {
   private policeStations: PoliceStation[] = POLICE_STATIONS;
   private riskZones: RiskZone[] = [];
   private announcements: Announcement[] = [];
+  private polls: Poll[] = [];
+  private petitions: Petition[] = [];
+  private rtis: RTIRequest[] = [];
+  private civicEvents: CivicEvent[] = [];
+  private chatMessages: ChatMessage[] = [];
+  private budgetItems: BudgetItem[] = [];
+  private auditLogs: AuditLog[] = [];
   private wsListeners: Set<(event: any) => void> = new Set();
 
   constructor() { this.seed(); }
@@ -600,6 +694,68 @@ class AppStorage {
       const id = genId();
       this.announcements.push({ ...a, id, postedAt: new Date(Date.now() - rndInt(0, 72) * 3600000).toISOString(), views: rndInt(50, 5000) });
     });
+
+    // Seed polls
+    const seedPolls: Omit<Poll, "id">[] = [
+      { question: "Which area needs urgent road repair in Dehradun?", options: ["Rajpur Road", "Sahastradhara Road", "Haridwar Road", "Rispana Bridge area"], votes: [45, 32, 28, 19], voterIds: [], district: "Dehradun", createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), createdBy: "Dehradun Admin", status: "active" },
+      { question: "Should we extend garbage collection to Sundays?", options: ["Yes, strongly agree", "No, weekdays are enough", "Need more dustbins first"], votes: [128, 34, 67], voterIds: [], createdAt: new Date(Date.now() - 5 * 86400000).toISOString(), createdBy: "SANKALP Super Admin", status: "active" },
+      { question: "Rate the water supply quality in your area", options: ["Excellent", "Good", "Average", "Poor", "Very Poor"], votes: [12, 38, 56, 41, 23], voterIds: [], district: "Haridwar", createdAt: new Date(Date.now() - 3 * 86400000).toISOString(), createdBy: "Haridwar Admin", status: "active" },
+      { question: "Which civic service needs most improvement?", options: ["Street Lighting", "Garbage Collection", "Road Repair", "Water Supply", "Drainage"], votes: [55, 72, 98, 61, 44], voterIds: [], createdAt: new Date(Date.now() - 7 * 86400000).toISOString(), createdBy: "SANKALP Super Admin", status: "active" },
+    ];
+    seedPolls.forEach(p => this.polls.push({ ...p, id: genId() }));
+
+    // Seed petitions
+    const seedPetitions: Omit<Petition, "id">[] = [
+      { title: "Install Speed Breakers Near Government School Dehradun", description: "Children's safety at risk due to speeding vehicles near Govt Inter College Dehradun. We demand immediate installation of speed breakers and zebra crossings at all 3 entry/exit points of the school.", target: "PWD Department & District Administration, Dehradun", goalSignatures: 500, signerIds: Array(312).fill("").map(() => genId()), district: "Dehradun", createdAt: new Date(Date.now() - 10 * 86400000).toISOString(), createdBy: "Ramesh Kumar Rawat", status: "active", department: "Public Works Department" },
+      { title: "Fix Broken Street Lights on Haridwar Bypass", description: "Over 40 street lights on the Haridwar Bypass have been non-functional for 3+ months. This is a major safety hazard, especially for women walking at night. We demand immediate repair.", target: "ULB Electric Wing, Haridwar", goalSignatures: 1000, signerIds: Array(647).fill("").map(() => genId()), district: "Haridwar", createdAt: new Date(Date.now() - 15 * 86400000).toISOString(), createdBy: "Priya Bisht", status: "active", department: "Urban Local Body" },
+      { title: "Open Health Sub-Centre in Agastmuni Block", description: "Residents of Agastmuni have to travel 25 km to Rudraprayag for basic healthcare. We demand a fully functional health sub-centre with doctor and medicine facilities in our block.", target: "Uttarakhand Health Department", goalSignatures: 750, signerIds: Array(189).fill("").map(() => genId()), district: "Rudraprayag", createdAt: new Date(Date.now() - 20 * 86400000).toISOString(), createdBy: "Asha Devi", status: "active", department: "Health Department" },
+      { title: "Ban Plastic Bags in Nainital Market", description: "Naini Lake is being polluted by single-use plastic. We urge the district administration to strictly enforce the plastic ban in Nainital market and tourist areas with heavy fines.", target: "Nainital District Administration", goalSignatures: 2000, signerIds: Array(1823).fill("").map(() => genId()), district: "Nainital", createdAt: new Date(Date.now() - 8 * 86400000).toISOString(), createdBy: "Amit Negi", status: "active", department: "Environment Department" },
+    ];
+    seedPetitions.forEach(p => this.petitions.push({ ...p, id: genId() }));
+
+    // Seed civic events
+    const futureDate = (days: number) => {
+      const d = new Date(Date.now() + days * 86400000);
+      return d.toISOString().split("T")[0];
+    };
+    const seedEvents: Omit<CivicEvent, "id">[] = [
+      { title: "Free Health Camp — Haridwar District", description: "Free general health checkup, blood pressure, sugar, eye testing and dental checkup for all citizens. Medicines provided free of cost. Bring Aadhaar card.", date: futureDate(3), time: "9:00 AM – 4:00 PM", location: "District Hospital, Haridwar", type: "camp", district: "Haridwar", rsvpIds: Array(78).fill("").map(() => genId()), organizer: "Uttarakhand Health Dept", createdAt: new Date().toISOString() },
+      { title: "Ward Committee Meeting — Dehradun East", description: "Monthly citizen grievance redressal meeting with ward officer. Bring your pending complaint tickets for direct resolution. All residents welcome.", date: futureDate(5), time: "11:00 AM – 1:00 PM", location: "Ward Office, Raipur Block, Dehradun", type: "meeting", district: "Dehradun", rsvpIds: Array(34).fill("").map(() => genId()), organizer: "Dehradun Admin", createdAt: new Date().toISOString() },
+      { title: "Swachh Bharat Drive — Nainital Lake Cleanup", description: "Join us in cleaning the banks of Naini Lake. Gloves and bags provided. Earn 50 SANKALP civic points for participating. All age groups welcome.", date: futureDate(7), time: "7:00 AM – 10:00 AM", location: "Naini Lake Boat Club, Nainital", type: "drive", district: "Nainital", rsvpIds: Array(112).fill("").map(() => genId()), organizer: "Nainital Admin", createdAt: new Date().toISOString() },
+      { title: "PM Awas Yojana Registration Drive", description: "Government camp for registering beneficiaries for PM Awas Yojana urban housing scheme. Income below ₹18L. Bring Aadhaar, income certificate, land documents.", date: futureDate(10), time: "10:00 AM – 5:00 PM", location: "Collectorate Office, Dehradun", type: "scheme", district: "Dehradun", rsvpIds: Array(203).fill("").map(() => genId()), organizer: "Dehradun Admin", createdAt: new Date().toISOString() },
+      { title: "Tree Plantation Drive — Uttarkashi Hills", description: "Forest Department invites volunteers to plant 5000 saplings on degraded hillside. Transportation provided from Uttarkashi town. Certificate given to all volunteers.", date: futureDate(14), time: "8:00 AM – 3:00 PM", location: "Forest Range Office, Uttarkashi", type: "drive", district: "Uttarkashi", rsvpIds: Array(45).fill("").map(() => genId()), organizer: "Forest Department, Uttarkashi", createdAt: new Date().toISOString() },
+      { title: "SANKALP AI Town Hall — All Districts", description: "State-level town hall on civic infrastructure improvement. Citizens can directly address district officers. Live broadcast. Attend in person or online.", date: futureDate(20), time: "3:00 PM – 6:00 PM", location: "Raj Bhavan Auditorium, Dehradun (+ Online)", type: "meeting", rsvpIds: Array(567).fill("").map(() => genId()), organizer: "SANKALP Super Admin", createdAt: new Date().toISOString() },
+    ];
+    seedEvents.forEach(e => this.civicEvents.push({ ...e, id: genId() }));
+
+    // Seed budget items
+    const DEPARTMENTS_BUDGET = [
+      { department: "Public Works Department", category: "Road Repair", allocated: 8500, spent: 6200, description: "National and state highway pothole repairs and resurfacing" },
+      { department: "Uttarakhand Jal Sansthan", category: "Water Infrastructure", allocated: 5200, spent: 4100, description: "Pipeline replacement, bore wells, water treatment plant upgrade" },
+      { department: "Urban Local Body", category: "Solid Waste Management", allocated: 3800, spent: 2900, description: "Garbage trucks, sweeping machines, landfill management" },
+      { department: "ULB Electric Wing", category: "Street Lighting", allocated: 2400, spent: 1800, description: "LED street light installation and maintenance across wards" },
+      { department: "Forest Department", category: "Green Cover", allocated: 1600, spent: 900, description: "Tree plantation, hill slope stabilization, eco-parks" },
+      { department: "Health Department", category: "Primary Health", allocated: 4500, spent: 3200, description: "PHC upgrades, medicine stock, health camps, ambulances" },
+      { department: "UPCL", category: "Power Infrastructure", allocated: 6100, spent: 5400, description: "Transformer upgrades, last-mile connectivity, smart metering" },
+      { department: "Disaster Management", category: "Emergency Preparedness", allocated: 2800, spent: 1400, description: "Landslide barriers, flood early warning, rescue equipment" },
+    ];
+    DEPARTMENTS_BUDGET.forEach(b => {
+      ["Dehradun", "Haridwar", "Nainital"].forEach(district => {
+        this.budgetItems.push({
+          id: genId(), ...b,
+          district,
+          year: 2025,
+          allocated: b.allocated * (district === "Dehradun" ? 1.3 : district === "Haridwar" ? 1.1 : 0.9),
+          spent: b.spent * (district === "Dehradun" ? 1.2 : district === "Haridwar" ? 1.0 : 0.8),
+        });
+      });
+    });
+
+    // Seed RTI examples
+    const seedRTIs: Omit<RTIRequest, "id">[] = [
+      { ticketId: `RTI-UK-${rndInt(10000, 99999)}`, subject: "Status of road repair work on Rajpur Road", description: "I am a resident of Rajpur Road, Dehradun. I request information on the status of road repair work sanctioned in 2024-25 budget, total expenditure incurred, contractor details and expected completion date.", department: "Public Works Department", filedBy: "Demo Citizen", filedByPhone: "9876543210", filedAt: new Date(Date.now() - 15 * 86400000).toISOString(), status: "acknowledged", district: "Champawat", deadline: new Date(Date.now() + 15 * 86400000).toISOString() },
+    ];
+    seedRTIs.forEach(r => this.rtis.push({ ...r, id: genId() }));
   }
 
   private recomputeWards() {
@@ -863,6 +1019,143 @@ class AppStorage {
   incrementAnnouncementViews(id: string) {
     const a = this.announcements.find(x => x.id === id);
     if (a) a.views++;
+  }
+
+  // ── POLLS ────────────────────────────────────────────────────────────────────
+  getPolls(district?: string): Poll[] {
+    if (district && district !== "Uttarakhand") {
+      return this.polls.filter(p => !p.district || p.district === district);
+    }
+    return [...this.polls];
+  }
+
+  createPoll(data: Omit<Poll, "id">): Poll {
+    const poll: Poll = { ...data, id: genId() };
+    this.polls.unshift(poll);
+    return poll;
+  }
+
+  votePoll(id: string, optionIndex: number, userId: string): Poll | null {
+    const poll = this.polls.find(p => p.id === id);
+    if (!poll || poll.status !== "active") return null;
+    if (poll.voterIds.includes(userId)) return poll;
+    if (optionIndex < 0 || optionIndex >= poll.options.length) return null;
+    poll.votes[optionIndex]++;
+    poll.voterIds.push(userId);
+    return poll;
+  }
+
+  // ── PETITIONS ────────────────────────────────────────────────────────────────
+  getPetitions(_district?: string): Petition[] {
+    return [...this.petitions];
+  }
+
+  createPetition(data: Omit<Petition, "id">): Petition {
+    const petition: Petition = { ...data, id: genId() };
+    this.petitions.unshift(petition);
+    return petition;
+  }
+
+  signPetition(id: string, userId: string): Petition | null {
+    const petition = this.petitions.find(p => p.id === id);
+    if (!petition || petition.status !== "active") return null;
+    if (petition.signerIds.includes(userId)) return petition;
+    petition.signerIds.push(userId);
+    if (petition.signerIds.length >= petition.goalSignatures) {
+      petition.status = "delivered";
+    }
+    return petition;
+  }
+
+  // ── RTI ──────────────────────────────────────────────────────────────────────
+  getRTIs(userId?: string, district?: string): RTIRequest[] {
+    let list = [...this.rtis];
+    if (userId) list = list.filter(r => r.filedByPhone !== undefined);
+    if (district && district !== "Uttarakhand") list = list.filter(r => r.district === district);
+    return list;
+  }
+
+  getRTIsByPhone(phone: string): RTIRequest[] {
+    return this.rtis.filter(r => r.filedByPhone === phone);
+  }
+
+  createRTI(data: Omit<RTIRequest, "id" | "ticketId" | "filedAt" | "deadline" | "status">): RTIRequest {
+    const now = new Date();
+    const deadline = new Date(now.getTime() + 30 * 86400000);
+    const rti: RTIRequest = {
+      ...data,
+      id: genId(),
+      ticketId: `RTI-UK-${Math.floor(10000 + Math.random() * 90000)}`,
+      filedAt: now.toISOString(),
+      deadline: deadline.toISOString(),
+      status: "filed",
+    };
+    this.rtis.unshift(rti);
+    this.addAuditLog("rti_filed", data.filedByPhone, data.filedBy, `RTI filed: ${data.subject}`, rti.id);
+    return rti;
+  }
+
+  respondRTI(id: string, response: string): RTIRequest | null {
+    const rti = this.rtis.find(r => r.id === id);
+    if (!rti) return null;
+    rti.response = response;
+    rti.status = "responded";
+    rti.respondedAt = new Date().toISOString();
+    return rti;
+  }
+
+  // ── CIVIC EVENTS ──────────────────────────────────────────────────────────────
+  getEvents(district?: string): CivicEvent[] {
+    if (district && district !== "Uttarakhand") {
+      return this.civicEvents.filter(e => !e.district || e.district === district);
+    }
+    return [...this.civicEvents];
+  }
+
+  createEvent(data: Omit<CivicEvent, "id" | "createdAt" | "rsvpIds">): CivicEvent {
+    const event: CivicEvent = { ...data, id: genId(), createdAt: new Date().toISOString(), rsvpIds: [] };
+    this.civicEvents.unshift(event);
+    return event;
+  }
+
+  rsvpEvent(id: string, userId: string): CivicEvent | null {
+    const event = this.civicEvents.find(e => e.id === id);
+    if (!event) return null;
+    if (!event.rsvpIds.includes(userId)) event.rsvpIds.push(userId);
+    return event;
+  }
+
+  // ── CHAT MESSAGES ─────────────────────────────────────────────────────────────
+  getChatMessages(complaintId: string): ChatMessage[] {
+    return this.chatMessages.filter(m => m.complaintId === complaintId);
+  }
+
+  addChatMessage(complaintId: string, message: string, senderName: string, senderRole: ChatMessage["senderRole"]): ChatMessage {
+    const msg: ChatMessage = { id: genId(), complaintId, message, senderName, senderRole, sentAt: new Date().toISOString() };
+    this.chatMessages.push(msg);
+    this.broadcastEvent({ type: "chat_message", complaintId, message: msg });
+    return msg;
+  }
+
+  // ── BUDGET ───────────────────────────────────────────────────────────────────
+  getBudgetItems(district?: string): BudgetItem[] {
+    if (district && district !== "Uttarakhand") {
+      return this.budgetItems.filter(b => b.district === district);
+    }
+    return [...this.budgetItems];
+  }
+
+  // ── AUDIT LOGS ────────────────────────────────────────────────────────────────
+  addAuditLog(action: string, userId: string, userName: string, details: string, complaintId?: string): AuditLog {
+    const log: AuditLog = { id: genId(), action, userId, userName, details, timestamp: new Date().toISOString(), complaintId };
+    this.auditLogs.push(log);
+    if (this.auditLogs.length > 5000) this.auditLogs.shift();
+    return log;
+  }
+
+  getAuditLogs(complaintId?: string): AuditLog[] {
+    if (complaintId) return this.auditLogs.filter(l => l.complaintId === complaintId);
+    return [...this.auditLogs].reverse().slice(0, 200);
   }
 
   // ── ADMIN STATS ──────────────────────────────────────────────────────────────
