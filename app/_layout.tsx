@@ -10,8 +10,15 @@ import { Slot, router, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { View, StyleSheet, Animated, Text, Pressable } from "react-native";
+
+// KeyboardProvider requires native code unavailable in Expo Go — use a safe fallback
+let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }>;
+try {
+  KeyboardProvider = require("react-native-keyboard-controller").KeyboardProvider;
+} catch {
+  KeyboardProvider = ({ children }) => <>{children}</>;
+}
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { AppProvider, useApp } from "@/context/AppContext";

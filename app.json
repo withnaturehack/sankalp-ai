@@ -46,6 +46,9 @@
     "extra": {
       "router": {
         "origin": "https://replit.com/"
+      },
+      "eas": {
+        "projectId": "5de0a065-9397-4f86-bcf7-0f186dd319fd"
       }
     }
   }
