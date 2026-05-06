@@ -1,73 +1,176 @@
-import React, { useRef, useState } from "react";
-import { View, StyleSheet, Text, Pressable, Platform } from "react-native";
-import MapView, { Marker, Circle, Callout, PROVIDER_DEFAULT, Region } from "react-native-maps";
+import React, { useRef, useMemo } from "react";
+import { View, StyleSheet, Pressable } from "react-native";
+import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import type { Complaint, SOSAlert, Worker, PoliceStation, RiskZone, GeoPoint } from "@/context/AppContext";
 
 export type MapFilter = "all" | "complaints" | "sos" | "workers" | "police" | "risks";
 
-// Uttarakhand center region
-const UK_REGION: Region = {
-  latitude: 30.0668,
-  longitude: 79.0193,
-  latitudeDelta: 2.8,
-  longitudeDelta: 3.8,
-};
-
-// District-specific map regions
-const DISTRICT_REGIONS: Record<string, Region> = {
-  "Dehradun":          { latitude: 30.3165, longitude: 78.0322, latitudeDelta: 0.6, longitudeDelta: 0.7 },
-  "Haridwar":          { latitude: 29.9457, longitude: 78.1642, latitudeDelta: 0.5, longitudeDelta: 0.6 },
-  "Tehri Garhwal":     { latitude: 30.3822, longitude: 78.4800, latitudeDelta: 0.8, longitudeDelta: 0.9 },
-  "Pauri Garhwal":     { latitude: 29.6864, longitude: 78.9764, latitudeDelta: 0.9, longitudeDelta: 1.0 },
-  "Rudraprayag":       { latitude: 30.2846, longitude: 78.9806, latitudeDelta: 0.8, longitudeDelta: 0.9 },
-  "Chamoli":           { latitude: 30.4090, longitude: 79.3206, latitudeDelta: 1.0, longitudeDelta: 1.2 },
-  "Uttarkashi":        { latitude: 30.7268, longitude: 78.4354, latitudeDelta: 0.9, longitudeDelta: 1.0 },
-  "Pithoragarh":       { latitude: 29.5829, longitude: 80.2178, latitudeDelta: 1.0, longitudeDelta: 1.2 },
-  "Bageshwar":         { latitude: 29.8371, longitude: 79.7715, latitudeDelta: 0.7, longitudeDelta: 0.8 },
-  "Almora":            { latitude: 29.5971, longitude: 79.6596, latitudeDelta: 0.7, longitudeDelta: 0.8 },
-  "Champawat":         { latitude: 29.3377, longitude: 80.0914, latitudeDelta: 0.7, longitudeDelta: 0.8 },
-  "Nainital":          { latitude: 29.3919, longitude: 79.4542, latitudeDelta: 0.5, longitudeDelta: 0.6 },
-  "Udham Singh Nagar": { latitude: 28.9982, longitude: 79.5050, latitudeDelta: 0.6, longitudeDelta: 0.7 },
+const DISTRICT_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
+  "Dehradun":          { lat: 30.3165, lng: 78.0322, zoom: 11 },
+  "Haridwar":          { lat: 29.9457, lng: 78.1642, zoom: 11 },
+  "Tehri Garhwal":     { lat: 30.3822, lng: 78.4800, zoom: 10 },
+  "Pauri Garhwal":     { lat: 29.6864, lng: 78.9764, zoom: 10 },
+  "Rudraprayag":       { lat: 30.2846, lng: 78.9806, zoom: 10 },
+  "Chamoli":           { lat: 30.4090, lng: 79.3206, zoom: 10 },
+  "Uttarkashi":        { lat: 30.7268, lng: 78.4354, zoom: 10 },
+  "Pithoragarh":       { lat: 29.5829, lng: 80.2178, zoom: 10 },
+  "Bageshwar":         { lat: 29.8371, lng: 79.7715, zoom: 11 },
+  "Almora":            { lat: 29.5971, lng: 79.6596, zoom: 11 },
+  "Champawat":         { lat: 29.3377, lng: 80.0914, zoom: 11 },
+  "Nainital":          { lat: 29.3919, lng: 79.4542, zoom: 11 },
+  "Udham Singh Nagar": { lat: 28.9982, lng: 79.5050, zoom: 11 },
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
   P1: "#EF4444", P2: "#F59E0B", P3: "#3B82F6", P4: "#6B7280",
 };
-
 const RISK_COLORS: Record<string, string> = {
   flood: "#3B82F6", garbage: "#22C55E", infrastructure: "#F59E0B", crime: "#EF4444",
 };
 
-const SOS_COLORS: Record<string, string> = {
-  gas_leak: "#F59E0B", water_burst: "#3B82F6", electric_hazard: "#EF4444",
-  fire_risk: "#EF4444", road_accident: "#F59E0B", women_safety: "#8B5CF6",
-  medical: "#22C55E", infrastructure: "#6B7280",
-};
-
-const DARK_MAP_STYLE = [
-  { elementType: "geometry", stylers: [{ color: "#0d1117" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#6B7280" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0d1117" }] },
-  { featureType: "administrative", elementType: "geometry.fill", stylers: [{ color: "#0d1117" }] },
-  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#1F2937" }] },
-  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#9CA3AF" }] },
-  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#111827" }] },
-  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#6B7280" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#0d1f0d" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#1F2937" }] },
-  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#0d1117" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2D3748" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#061728" }] },
-  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#3B82F6" }] },
-];
-
-interface MarkerItem {
+interface MarkerData {
+  lat: number;
+  lng: number;
+  color: string;
   type: "complaint" | "sos" | "worker" | "police" | "risk";
   title: string;
   subtitle: string;
-  extra?: string;
-  color: string;
+  radius: number;
+  ringRadius?: number;
+}
+
+function buildLeafletHTML(
+  markers: MarkerData[],
+  center: { lat: number; lng: number; zoom: number },
+  userLoc: { lat: number; lng: number } | null
+): string {
+  const markersJson = JSON.stringify(markers);
+  const userJson = JSON.stringify(userLoc);
+  const cLat = center.lat;
+  const cLng = center.lng;
+  const cZoom = center.zoom;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body,#map{width:100%;height:100%;background:#0d1117}
+  .leaflet-container{background:#0d1117}
+  .leaflet-popup-content-wrapper{background:#111827;border:1px solid #1F2937;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.6);padding:0}
+  .leaflet-popup-content{margin:0;color:#fff}
+  .leaflet-popup-tip-container{display:none}
+  .leaflet-control-zoom{border:1px solid #374151!important;border-radius:10px!important;overflow:hidden}
+  .leaflet-control-zoom a{background:#1F2937!important;color:#9CA3AF!important;border:none!important;font-size:18px!important;width:36px!important;height:36px!important;line-height:36px!important}
+  .leaflet-control-zoom a:hover{background:#374151!important;color:#fff!important}
+  .leaflet-attribution-flag{display:none!important}
+  .leaflet-control-attribution{background:rgba(17,24,39,0.85)!important;color:#4B5563!important;font-size:9px!important;border-radius:6px!important;border:1px solid #374151!important;padding:2px 6px!important}
+  .leaflet-control-attribution a{color:#6B7280!important}
+  .popup-box{padding:10px 12px;min-width:160px}
+  .popup-title{font-weight:700;font-size:13px;color:#fff;margin-bottom:4px;font-family:sans-serif;line-height:1.3}
+  .popup-sub{font-size:11px;color:#9CA3AF;font-family:sans-serif;line-height:1.4}
+  .popup-type{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 6px;border-radius:4px;margin-bottom:6px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+var map=L.map('map',{
+  center:[${cLat},${cLng}],
+  zoom:${cZoom},
+  zoomControl:true,
+  attributionControl:true,
+  preferCanvas:true
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+  subdomains:'abcd',
+  maxZoom:19
+}).addTo(map);
+
+var typeLabels={
+  complaint:'ISSUE',sos:'SOS',worker:'WORKER',police:'POLICE',risk:'RISK'
+};
+
+var markersData=${markersJson};
+
+markersData.forEach(function(m){
+  if(m.type==='risk'){
+    L.circle([m.lat,m.lng],{
+      radius:m.ringRadius||2000,
+      fillColor:m.color,
+      color:m.color,
+      weight:1,
+      opacity:0.5,
+      fillOpacity:0.12,
+      interactive:false
+    }).addTo(map);
+  }
+
+  var marker=L.circleMarker([m.lat,m.lng],{
+    radius:m.radius,
+    fillColor:m.color,
+    color:'rgba(0,0,0,0.3)',
+    weight:1.5,
+    opacity:1,
+    fillOpacity:0.9
+  }).addTo(map);
+
+  var popupHTML='<div class="popup-box">'
+    +'<span class="popup-type" style="background:'+m.color+'22;color:'+m.color+'">'+typeLabels[m.type]+'</span>'
+    +'<div class="popup-title">'+m.title+'</div>'
+    +'<div class="popup-sub">'+m.subtitle+'</div>'
+    +'</div>';
+  marker.bindPopup(popupHTML,{maxWidth:240,closeButton:false});
+});
+
+var userLoc=${userJson};
+if(userLoc){
+  L.circle([userLoc.lat,userLoc.lng],{
+    radius:400,
+    fillColor:'#22C55E',
+    color:'#22C55E',
+    weight:1,
+    opacity:0.4,
+    fillOpacity:0.08,
+    interactive:false
+  }).addTo(map);
+
+  L.circleMarker([userLoc.lat,userLoc.lng],{
+    radius:10,
+    fillColor:'#22C55E',
+    color:'#fff',
+    weight:2.5,
+    fillOpacity:1
+  }).addTo(map)
+    .bindPopup('<div class="popup-box"><span class="popup-type" style="background:#22C55E22;color:#22C55E">YOU</span><div class="popup-title">Your Location</div><div class="popup-sub">'+userLoc.lat.toFixed(5)+'\u00B0N, '+userLoc.lng.toFixed(5)+'\u00B0E</div></div>',{maxWidth:200,closeButton:false});
+
+  map.setView([userLoc.lat,userLoc.lng],${cZoom},{animate:false});
+}
+
+document.addEventListener('message',function(e){
+  try{
+    var msg=JSON.parse(e.data);
+    if(msg.type==='panTo') map.setView([msg.lat,msg.lng],msg.zoom||12,{animate:true});
+    if(msg.type==='recenter') map.setView([${cLat},${cLng}],${cZoom},{animate:true});
+  }catch(err){}
+});
+window.addEventListener('message',function(e){
+  try{
+    var msg=JSON.parse(e.data);
+    if(msg.type==='panTo') map.setView([msg.lat,msg.lng],msg.zoom||12,{animate:true});
+    if(msg.type==='recenter') map.setView([${cLat},${cLng}],${cZoom},{animate:true});
+  }catch(err){}
+});
+</script>
+</body>
+</html>`;
 }
 
 interface Props {
@@ -82,112 +185,138 @@ interface Props {
   style?: any;
 }
 
-function CalloutView({ item }: { item: MarkerItem }) {
-  return (
-    <View style={styles.callout}>
-      <Text style={styles.calloutTitle} numberOfLines={2}>{item.title}</Text>
-      <Text style={styles.calloutSub} numberOfLines={2}>{item.subtitle}</Text>
-      {item.extra ? <Text style={styles.calloutExtra} numberOfLines={1}>{item.extra}</Text> : null}
-    </View>
-  );
-}
-
-export default function UttarakhandMap({ complaints = [], sosAlerts = [], workers = [], policeStations = [], riskZones = [], filter = "all", userLocation, userDistrict, style }: Props) {
-  const mapRef = useRef<MapView>(null);
-  const initialRegion = (userDistrict && DISTRICT_REGIONS[userDistrict]) ? DISTRICT_REGIONS[userDistrict] : UK_REGION;
-  const [region, setRegion] = useState<Region>(initialRegion);
+export default function UttarakhandMap({
+  complaints = [],
+  sosAlerts = [],
+  workers = [],
+  policeStations = [],
+  riskZones = [],
+  filter = "all",
+  userLocation,
+  userDistrict,
+  style,
+}: Props) {
+  const webViewRef = useRef<WebView>(null);
 
   const show = (type: "complaints" | "sos" | "workers" | "police" | "risks") =>
     filter === "all" || filter === type;
 
+  const markers = useMemo<MarkerData[]>(() => {
+    const result: MarkerData[] = [];
+
+    if (show("complaints")) {
+      complaints.slice(0, 100).forEach(c => {
+        if (c.geo?.lat && c.geo?.lng) {
+          result.push({
+            lat: c.geo.lat, lng: c.geo.lng,
+            color: PRIORITY_COLORS[c.priority] || "#6B7280",
+            type: "complaint", radius: 7,
+            title: `${c.ticketId} — ${c.category.toUpperCase()}`,
+            subtitle: `${c.priority} · ${c.status} · ${c.location}`,
+          });
+        }
+      });
+    }
+
+    if (show("sos")) {
+      sosAlerts.filter(s => s.status !== "resolved").forEach(s => {
+        if (s.geo?.lat && s.geo?.lng) {
+          result.push({
+            lat: s.geo.lat, lng: s.geo.lng,
+            color: s.category === "women_safety" ? "#8B5CF6" : "#EF4444",
+            type: "sos", radius: 11,
+            title: `SOS: ${s.category.replace(/_/g, " ").toUpperCase()}`,
+            subtitle: `${s.status.toUpperCase()} · ${s.location}`,
+          });
+        }
+      });
+    }
+
+    if (show("workers")) {
+      workers.filter(w => w.geo && w.status === "active").forEach(w => {
+        if (w.geo?.lat && w.geo?.lng) {
+          result.push({
+            lat: w.geo!.lat, lng: w.geo!.lng,
+            color: "#06B6D4", type: "worker", radius: 8,
+            title: w.name,
+            subtitle: w.currentTask || "On duty",
+          });
+        }
+      });
+    }
+
+    if (show("police")) {
+      policeStations.forEach(ps => {
+        if (ps.geo?.lat && ps.geo?.lng) {
+          result.push({
+            lat: ps.geo.lat, lng: ps.geo.lng,
+            color: "#F59E0B", type: "police", radius: 9,
+            title: ps.name,
+            subtitle: ps.phone,
+          });
+        }
+      });
+    }
+
+    if (show("risks")) {
+      riskZones.filter(rz => rz.geo).forEach(rz => {
+        if (rz.geo?.lat && rz.geo?.lng) {
+          result.push({
+            lat: rz.geo.lat, lng: rz.geo.lng,
+            color: RISK_COLORS[rz.type] || "#8B5CF6",
+            type: "risk", radius: 10,
+            ringRadius: (rz.radius || 2) * 600,
+            title: `${rz.type.toUpperCase()} RISK`,
+            subtitle: `Severity: ${rz.severity} · ${rz.description}`,
+          });
+        }
+      });
+    }
+
+    return result;
+  }, [complaints, sosAlerts, workers, policeStations, riskZones, filter]);
+
+  const center = useMemo(() => {
+    if (userDistrict && userDistrict !== "Uttarakhand" && DISTRICT_CENTERS[userDistrict]) {
+      return DISTRICT_CENTERS[userDistrict];
+    }
+    return { lat: 30.0668, lng: 79.0193, zoom: 8 };
+  }, [userDistrict]);
+
+  const html = useMemo(() =>
+    buildLeafletHTML(
+      markers,
+      center,
+      userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null
+    ),
+    [markers, center, userLocation]
+  );
+
+  const recenter = () => {
+    const js = `
+      map.setView([${center.lat}, ${center.lng}], ${center.zoom}, {animate: true});
+      true;
+    `;
+    webViewRef.current?.injectJavaScript(js);
+  };
+
   return (
     <View style={[styles.container, style]}>
-      <MapView
-        ref={mapRef}
+      <WebView
+        ref={webViewRef}
+        source={{ html }}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={initialRegion}
-        customMapStyle={DARK_MAP_STYLE}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        showsScale={false}
-        onRegionChangeComplete={setRegion}
-        loadingEnabled
-        loadingBackgroundColor="#0d1117"
-        loadingIndicatorColor="#FF9933"
-        rotateEnabled={false}
-        pitchEnabled={false}
-      >
-        {userLocation && (
-          <Marker coordinate={{ latitude: userLocation.lat, longitude: userLocation.lng }} anchor={{ x: 0.5, y: 0.5 }} zIndex={100}>
-            <View style={styles.userDot}><View style={styles.userDotInner} /></View>
-            <Callout tooltip>
-              <CalloutView item={{ type: "worker", title: "Your Location", subtitle: `${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`, color: "#06B6D4" }} />
-            </Callout>
-          </Marker>
-        )}
-
-        {show("risks") && riskZones.map(rz => (
-          <Circle key={rz.id} center={{ latitude: rz.geo.lat, longitude: rz.geo.lng }} radius={rz.radius * 80}
-            fillColor={RISK_COLORS[rz.type] + "22"} strokeColor={RISK_COLORS[rz.type] + "88"} strokeWidth={1.5} />
-        ))}
-
-        {show("risks") && riskZones.map(rz => (
-          <Marker key={`risk-${rz.id}`} coordinate={{ latitude: rz.geo.lat, longitude: rz.geo.lng }} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={[styles.markerPin, { backgroundColor: RISK_COLORS[rz.type] + "EE" }]}>
-              <Ionicons name={rz.type === "flood" ? "water" : rz.type === "crime" ? "warning" : rz.type === "garbage" ? "trash" : "construct"} size={11} color="#fff" />
-            </View>
-            <Callout tooltip>
-              <CalloutView item={{ type: "risk", title: `${rz.type.toUpperCase()} RISK`, subtitle: rz.description, extra: `Severity: ${rz.severity} · ${rz.complaintCount} reports`, color: RISK_COLORS[rz.type] }} />
-            </Callout>
-          </Marker>
-        ))}
-
-        {show("police") && policeStations.map(ps => (
-          <Marker key={ps.id} coordinate={{ latitude: ps.geo.lat, longitude: ps.geo.lng }} anchor={{ x: 0.5, y: 1 }}>
-            <View style={[styles.markerBadge, { borderColor: "#F59E0B" }]}>
-              <Ionicons name="shield" size={13} color="#F59E0B" />
-            </View>
-            <Callout tooltip>
-              <CalloutView item={{ type: "police", title: ps.name, subtitle: ps.address, extra: ps.phone, color: "#F59E0B" }} />
-            </Callout>
-          </Marker>
-        ))}
-
-        {show("workers") && workers.filter(w => w.geo && w.status === "active").map(w => (
-          <Marker key={w.id} coordinate={{ latitude: w.geo!.lat, longitude: w.geo!.lng }} anchor={{ x: 0.5, y: 1 }}>
-            <View style={[styles.markerBadge, { borderColor: "#06B6D4" }]}>
-              <Ionicons name="person" size={12} color="#06B6D4" />
-            </View>
-            <Callout tooltip>
-              <CalloutView item={{ type: "worker", title: w.name, subtitle: w.currentTask || "On duty", extra: `Rating: ${w.avgRating.toFixed(1)} · Score: ${w.score}`, color: "#06B6D4" }} />
-            </Callout>
-          </Marker>
-        ))}
-
-        {show("sos") && sosAlerts.filter(s => s.status !== "resolved").map(s => (
-          <Marker key={s.id} coordinate={{ latitude: s.geo.lat, longitude: s.geo.lng }} anchor={{ x: 0.5, y: 1 }}>
-            <View style={[styles.markerPin, { backgroundColor: SOS_COLORS[s.category] || "#EF4444" }]}>
-              <Ionicons name="warning" size={12} color="#fff" />
-            </View>
-            <Callout tooltip>
-              <CalloutView item={{ type: "sos", title: `SOS: ${s.category.replace(/_/g, " ").toUpperCase()}`, subtitle: s.description, extra: `${s.status.toUpperCase()} · ${s.location}`, color: "#EF4444" }} />
-            </Callout>
-          </Marker>
-        ))}
-
-        {show("complaints") && complaints.slice(0, 120).map(c => (
-          <Marker key={c.id} coordinate={{ latitude: c.geo.lat, longitude: c.geo.lng }} anchor={{ x: 0.5, y: 1 }}>
-            <View style={[styles.dotMarker, { backgroundColor: PRIORITY_COLORS[c.priority] }]} />
-            <Callout tooltip>
-              <CalloutView item={{ type: "complaint", title: `${c.ticketId} · ${c.category.toUpperCase()}`, subtitle: c.description.slice(0, 80), extra: `${c.priority} · ${c.status} · ${c.ward}`, color: PRIORITY_COLORS[c.priority] }} />
-            </Callout>
-          </Marker>
-        ))}
-      </MapView>
-
-      <Pressable style={styles.recenterBtn} onPress={() => mapRef.current?.animateToRegion(initialRegion, 500)}>
+        javaScriptEnabled
+        domStorageEnabled
+        originWhitelist={["*"]}
+        mixedContentMode="always"
+        scrollEnabled={false}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        onError={e => console.warn("[Map] WebView error:", e.nativeEvent.description)}
+        onHttpError={e => console.warn("[Map] HTTP error:", e.nativeEvent.statusCode)}
+      />
+      <Pressable style={styles.recenterBtn} onPress={recenter}>
         <Ionicons name="locate" size={20} color="#fff" />
       </Pressable>
     </View>
@@ -196,14 +325,13 @@ export default function UttarakhandMap({ complaints = [], sosAlerts = [], worker
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0d1117", overflow: "hidden" },
-  userDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#06B6D422", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#06B6D4" },
-  userDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#06B6D4" },
-  markerPin: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.3)" },
-  markerBadge: { width: 28, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: "#111827", borderWidth: 2 },
-  dotMarker: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: "rgba(255,255,255,0.4)" },
-  callout: { backgroundColor: "#111827", borderRadius: 10, padding: 10, maxWidth: 220, borderWidth: 1, borderColor: "#1F2937" },
-  calloutTitle: { color: "#fff", fontSize: 12, fontWeight: "700", marginBottom: 3 },
-  calloutSub: { color: "#9CA3AF", fontSize: 11, lineHeight: 15 },
-  calloutExtra: { color: "#6B7280", fontSize: 10, marginTop: 3 },
-  recenterBtn: { position: "absolute", bottom: 16, right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: "#111827", borderWidth: 1, borderColor: "#1F2937", alignItems: "center", justifyContent: "center" },
+  recenterBtn: {
+    position: "absolute", bottom: 16, right: 16,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: "#1F2937",
+    borderWidth: 1, borderColor: "#374151",
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
+  },
 });

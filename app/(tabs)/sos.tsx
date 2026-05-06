@@ -246,7 +246,7 @@ function SOSScreenInner() {
         locationWatchRef.current = watchSub;
       } catch {
         if (cancelled) return;
-        const g: GeoPoint = { lat: 28.6139, lng: 77.2090 };
+        const g: GeoPoint = { lat: 30.3165, lng: 78.0322 };
         setGeo(g); currentGeoRef.current = g; setGeoStatus("found");
         setNearestPS(policeStations.slice(0, 3).map(ps => ({
           ...ps, distance: parseFloat(haversineKm(g, ps.geo).toFixed(2))
@@ -254,7 +254,10 @@ function SOSScreenInner() {
       }
     };
     init();
-    return () => { cancelled = true; watchSub?.remove(); };
+    return () => {
+      cancelled = true;
+      try { watchSub?.remove(); } catch {}
+    };
   }, [policeStations]);
 
   // ── ACCELEROMETER SHAKE ───────────────────────────────────────────────────
@@ -369,11 +372,10 @@ function SOSScreenInner() {
 
   // ── CLEANUP ───────────────────────────────────────────────────────────────
   useEffect(() => () => {
-    locationWatchRef.current?.remove();
+    try { locationWatchRef.current?.remove(); } catch {}
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     if (holdProgressRef.current) clearInterval(holdProgressRef.current);
-    // Stop any active audio recording on unmount
     if (audioRecordingRef.current) {
       audioRecordingRef.current.stopAndUnloadAsync().catch(() => {});
       audioRecordingRef.current = null;
@@ -512,7 +514,7 @@ function SOSScreenInner() {
     if (Platform.OS !== "web") {
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     }
-    if (cnt >= 5) {
+    if (cnt >= 6) {
       volumePressTs.current = [];
       setVolumePressCount(0);
       activateWomenSafety("volume_up");

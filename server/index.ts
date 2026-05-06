@@ -194,6 +194,8 @@ function configureExpoAndLanding(app: express.Application) {
     if (req.path === "/") {
       const webIndexPath = path.resolve(process.cwd(), "static-build", "web", "index.html");
       if (fs.existsSync(webIndexPath)) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
         return res.sendFile(webIndexPath);
       }
       return serveLandingPage({
@@ -220,6 +222,8 @@ function configureExpoAndLanding(app: express.Application) {
     }
     const webIndexPath = path.resolve(process.cwd(), "static-build", "web", "index.html");
     if (fs.existsSync(webIndexPath)) {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
       return res.sendFile(webIndexPath);
     }
     next();
