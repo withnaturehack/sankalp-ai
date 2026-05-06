@@ -342,7 +342,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: { id: user.id, name: user.name, phone: user.phone, role: user.role, district: user.district, points: user.points, badges: user.badges, level: user.level },
         token
       });
-    } catch { res.status(500).json({ message: "Registration failed" }); }
+    } catch (err: any) {
+      console.error("[Register] Unexpected error:", err?.message || err);
+      res.status(500).json({ message: err?.message || "Registration failed. Please try again." });
+    }
   });
 
   app.post("/api/auth/login", rateLimit(10, 60_000), async (req, res) => {
@@ -365,7 +368,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: { id: user.id, name: user.name, phone: user.phone, role: user.role, district: user.district, points: user.points, badges: user.badges, level: user.level },
         token
       });
-    } catch { res.status(500).json({ message: "Login failed" }); }
+    } catch (err: any) {
+      console.error("[Login] Unexpected error:", err?.message || err);
+      res.status(500).json({ message: err?.message || "Login failed. Please try again." });
+    }
   });
 
   app.get("/api/auth/me", requireAuth, (req, res) => {

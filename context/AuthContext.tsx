@@ -68,14 +68,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (phone: string, pin: string) => {
     const baseUrl = getApiUrl();
     const url = new URL("/api/auth/login", baseUrl);
-    const res = await fetch(url.toString(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, pin }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, pin }),
+      });
+    } catch (networkErr: any) {
+      throw new Error(`Network error — check your connection. (${networkErr?.message || "unreachable"})`);
+    }
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: "Login failed" }));
-      throw new Error(err.message || "Login failed");
+      let msg = `Login failed (${res.status})`;
+      try { const e = await res.json(); msg = e.message || msg; } catch {}
+      throw new Error(msg);
     }
     const data = await res.json();
     setUser(data.user);

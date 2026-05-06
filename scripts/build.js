@@ -65,10 +65,17 @@ function prepareDirectories(timestamp) {
   console.log("Preparing build directories...");
 
   if (fs.existsSync("static-build")) {
-    fs.rmSync("static-build", { recursive: true });
+    // Preserve the web build — only remove native/timestamped dirs
+    const entries = fs.readdirSync("static-build");
+    for (const entry of entries) {
+      if (entry !== "web") {
+        fs.rmSync(path.join("static-build", entry), { recursive: true, force: true });
+      }
+    }
   }
 
   const dirs = [
+    path.join("static-build", "web"),
     path.join("static-build", timestamp, "_expo", "static", "js", "ios"),
     path.join("static-build", timestamp, "_expo", "static", "js", "android"),
     path.join("static-build", "ios"),
@@ -80,6 +87,52 @@ function prepareDirectories(timestamp) {
   }
 
   console.log("Build:", timestamp);
+}
+
+async function buildWebExport(expoPublicDomain) {
+  const webDir = path.join("static-build", "web");
+  console.log("Building web bundle (expo export)...");
+
+  const env = {
+    ...process.env,
+    EXPO_PUBLIC_DOMAIN: expoPublicDomain,
+    EXPO_NO_TELEMETRY: "1",
+    EXPO_NO_DOTENV: "1",
+  };
+
+  return new Promise((resolve) => {
+    const proc = require("child_process").spawn(
+      "node_modules/.bin/expo",
+      ["export", "--platform", "web", "--output-dir", webDir],
+      { stdio: ["ignore", "pipe", "pipe"], env },
+    );
+
+    if (proc.stdout) proc.stdout.on("data", (d) => {
+      const o = d.toString().trim();
+      if (o) console.log(`[Web] ${o}`);
+    });
+    if (proc.stderr) proc.stderr.on("data", (d) => {
+      const o = d.toString().trim();
+      if (o) console.error(`[Web Error] ${o}`);
+    });
+
+    const timer = setTimeout(() => {
+      console.error("Web build timed out after 5m — skipping web bundle");
+      proc.kill();
+      resolve(false);
+    }, 300_000);
+
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        console.log("Web bundle ready at static-build/web/");
+        resolve(true);
+      } else {
+        console.error(`Web build exited with code ${code} — native build will still work`);
+        resolve(false);
+      }
+    });
+  });
 }
 
 function clearMetroCache() {
@@ -577,11 +630,17 @@ async function main() {
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
 
-  console.log("Build complete! Deploy to:", baseUrl);
-
+  // Kill native Metro so expo export can start its own on the same port
   if (metroProcess) {
+    console.log("Stopping native Metro to free port for web build...");
     metroProcess.kill();
+    metroProcess = null;
+    await new Promise((r) => setTimeout(r, 3000));
   }
+
+  await buildWebExport(domain);
+
+  console.log("Build complete! Deploy to:", baseUrl);
   process.exit(0);
 }
 
