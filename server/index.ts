@@ -151,7 +151,9 @@ function serveLandingPage({
   const forwardedHost = req.header("x-forwarded-host");
   const host = forwardedHost || req.get("host");
   const baseUrl = `${protocol}://${host}`;
-  const expsUrl = `${host}`;
+  // Use the Expo Dev Server domain for QR code — this is where Metro serves native bundles
+  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  const expsUrl = devDomain || host;
 
   log(`baseUrl`, baseUrl);
   log(`expsUrl`, expsUrl);
@@ -192,18 +194,8 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     if (req.path === "/") {
-      const webIndexPath = path.resolve(process.cwd(), "static-build", "web", "index.html");
-      if (fs.existsSync(webIndexPath)) {
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-        res.setHeader("Pragma", "no-cache");
-        return res.sendFile(webIndexPath);
-      }
-      return serveLandingPage({
-        req,
-        res,
-        landingPageTemplate,
-        appName,
-      });
+      // Always serve the landing page at root — shows Expo Go QR code + web app link
+      return serveLandingPage({ req, res, landingPageTemplate, appName });
     }
 
     next();

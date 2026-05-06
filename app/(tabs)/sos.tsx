@@ -190,6 +190,8 @@ function SOSScreenInner() {
   // Shake detection
   const lastAccel = useRef({ x: 0, y: 0, z: 0 });
   const shakeTs = useRef<number[]>([]);
+  // Ref to hold latest activateWomenSafety — avoids stale closure in accelerometer listener
+  const activateWomenSafetyRef = useRef<(source: string) => void>(() => {});
 
   // Animations
   const btnScale = useRef(new Animated.Value(1)).current;
@@ -278,7 +280,7 @@ function SOSScreenInner() {
         if (shakeTs.current.length >= 4) {
           shakeTs.current = [];
           setShakeCount(0);
-          activateWomenSafety("shake");
+          activateWomenSafetyRef.current("shake");
         }
       }
     });
@@ -449,6 +451,11 @@ function SOSScreenInner() {
       }
     } catch {}
   }, [womenPanic, triggerWomenSafetySOS, startLive, startAudioRecording]);
+
+  // Keep ref always pointing to latest activateWomenSafety (fixes stale closure in accelerometer)
+  useEffect(() => {
+    activateWomenSafetyRef.current = activateWomenSafety;
+  }, [activateWomenSafety]);
 
   // ── WOMEN 6-TAP ───────────────────────────────────────────────────────────
   const handleWomenTap = () => {

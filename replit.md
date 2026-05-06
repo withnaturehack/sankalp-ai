@@ -60,7 +60,7 @@ EXPO_PUBLIC_DOMAIN=sankalp-ai.replit.app EXPO_NO_TELEMETRY=1 EXPO_NO_DOTENV=1 \
 - **In-memory Backend Storage**: Simplifies deployment; suitable for demo/prototype.
 - **Token-based Authentication**: Bearer tokens in AsyncStorage; stateless API.
 - **Dynamic API URL Resolution**: `getApiUrl()` returns `https://sankalp-ai.replit.app/` in production builds, `localhost:5000` in dev.
-- **SPA Fallback + No-Cache**: Server serves `index.html` for all non-API routes with `Cache-Control: no-store` so browsers always load the latest bundle.
+- **Landing Page at Root**: `/` always serves the branded Expo Go landing page (QR code using `REPLIT_DEV_DOMAIN`). Web app accessible via `Continue in Web Browser` → `/home`. SPA fallback handles all non-root paths.
 - **Location Cleanup Safety**: All `watchPositionAsync.remove()` calls wrapped in try-catch to prevent `LocationEventEmitter.removeSubscription` crash in some Expo versions.
 
 ## Product
@@ -91,6 +91,7 @@ EXPO_PUBLIC_DOMAIN=sankalp-ai.replit.app EXPO_NO_TELEMETRY=1 EXPO_NO_DOTENV=1 \
 - **NVIDIA_API_KEY**: Optional. AI chat falls back gracefully if missing.
 - **Map Tiles**: CartoDB Positron (light/white) tiles from CDN (`unpkg.com`, `basemaps.cartocdn.com`) — requires internet. Works in Expo Go and browser.
 - **PWA**: `static-build/web/index.html` includes apple-mobile-web-app-capable + theme-color tags so users can "Add to Home Screen" for full-screen native-like experience.
+- **Shake SOS fix**: `activateWomenSafetyRef` keeps a live ref to `activateWomenSafety` — the accelerometer listener uses the ref to avoid the stale-closure bug from `[]` deps.
 - **Location Subscription**: `watchPositionAsync.remove()` wrapped in try-catch to prevent `LocationEventEmitter.removeSubscription` crash in some Expo SDK versions.
 
 ## Pointers
