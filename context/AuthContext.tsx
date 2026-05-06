@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
-import { fetch } from "expo/fetch";
 
 export type UserRole = "citizen" | "worker" | "admin" | "super_admin";
 

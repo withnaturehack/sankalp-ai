@@ -1,4 +1,3 @@
-import { fetch } from "expo/fetch";
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import Constants from "expo-constants";
 
@@ -57,11 +56,10 @@ export async function apiRequest(
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
 
-  const res = await fetch(url.toString(), {
+  const res = await globalThis.fetch(url.toString(), {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
   await throwIfResNotOk(res);
@@ -76,9 +74,7 @@ export const getQueryFn =
     const baseUrl = getApiUrl();
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
-    const res = await fetch(url.toString(), {
-      credentials: "include",
-    });
+    const res = await globalThis.fetch(url.toString());
 
     if (on401 === "returnNull" && res.status === 401) {
       return null as T;

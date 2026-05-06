@@ -7,7 +7,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getApiUrl } from "@/lib/query-client";
-import { fetch } from "expo/fetch";
 import { useAuth } from "@/context/AuthContext";
 
 interface Msg { id: string; role: "user" | "ai"; text: string; ts: Date }
