@@ -213,6 +213,18 @@ function configureExpoAndLanding(app: express.Application) {
   // Raw source assets as fallback (for icons, splash, etc. not hashed by Metro)
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
 
+  // SPA fallback — all non-API, non-static routes serve index.html for client-side routing
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/_expo") || req.path.startsWith("/assets")) {
+      return next();
+    }
+    const webIndexPath = path.resolve(process.cwd(), "static-build", "web", "index.html");
+    if (fs.existsSync(webIndexPath)) {
+      return res.sendFile(webIndexPath);
+    }
+    next();
+  });
+
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
 

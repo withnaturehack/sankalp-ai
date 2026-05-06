@@ -43,6 +43,8 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Accelerometer } from "expo-sensors";
 import { Audio } from "expo-av";
+import * as Speech from "expo-speech";
+import * as Notifications from "expo-notifications";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
@@ -210,6 +212,13 @@ function SOSScreenInner() {
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 3);
   }
+
+  // ── NOTIFICATION PERMISSIONS ─────────────────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      Notifications.requestPermissionsAsync().catch(() => {});
+    }
+  }, []);
 
   // ── GPS ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -406,6 +415,14 @@ function SOSScreenInner() {
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
       Vibration.vibrate([0, 400, 150, 400, 150, 400, 150, 400]);
     }
+    // Voice alert — speak immediately to reassure the user
+    try {
+      Speech.speak("Emergency alert sent. Police and help notified. Stay calm. Help is on the way.", {
+        language: "en-IN",
+        rate: 0.88,
+        pitch: 1.0,
+      });
+    } catch {}
     // Start live audio recording immediately
     startAudioRecording();
     try {
@@ -415,6 +432,18 @@ function SOSScreenInner() {
         setActiveAlert({ ...result.alert, isWomenSafety: true });
         setTriggered(true);
         startLive(result.alert.id);
+        // System notification
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "🛡️ Women Safety SOS Sent",
+              body: "Emergency alert dispatched. Police notified. Live location sharing active.",
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+            },
+            trigger: null,
+          });
+        } catch {}
       }
     } catch {}
   }, [womenPanic, triggerWomenSafetySOS, startLive, startAudioRecording]);
@@ -500,9 +529,10 @@ function SOSScreenInner() {
     }
     try {
       const g = currentGeoRef.current || { lat: 28.6139, lng: 77.209 };
+      const cat = SOS_CATS.find(c => c.key === selectedCat);
       const alert = await triggerSOS({
         category: selectedCat as any,
-        description: description || `${SOS_CATS.find(c => c.key === selectedCat)?.label} emergency via SANKALP AI`,
+        description: description || `${cat?.label} emergency via SANKALP AI`,
         location: `GPS: ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}`,
         geo: g,
         ward: nearestPS[0]?.ward || "Dehradun",
@@ -513,6 +543,25 @@ function SOSScreenInner() {
       setTriggered(true);
       setShowModal(false);
       startLive(alert.id);
+      // Voice confirmation
+      try {
+        Speech.speak(`${cat?.label || "Emergency"} SOS sent. Emergency services notified. Stay safe.`, {
+          language: "en-IN",
+          rate: 0.9,
+        });
+      } catch {}
+      // System notification
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `🚨 SOS Alert Sent — ${cat?.label || "Emergency"}`,
+            body: "Emergency services notified. Live location sharing has started.",
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          },
+          trigger: null,
+        });
+      } catch {}
     } catch (err: any) {
       Alert.alert("SOS Failed", err.message || "Could not send SOS. Please call 112 directly.");
     } finally { setIsTriggering(false); }

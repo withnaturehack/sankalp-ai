@@ -106,13 +106,18 @@ export default function UttarakhandMap({ complaints = [], sosAlerts = [], worker
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        initialRegion={UK_REGION}
-        customMapStyle={Platform.OS === "android" ? DARK_MAP_STYLE : undefined}
+        initialRegion={initialRegion}
+        customMapStyle={DARK_MAP_STYLE}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
         showsScale={false}
         onRegionChangeComplete={setRegion}
+        loadingEnabled
+        loadingBackgroundColor="#0d1117"
+        loadingIndicatorColor="#FF9933"
+        rotateEnabled={false}
+        pitchEnabled={false}
       >
         {userLocation && (
           <Marker coordinate={{ latitude: userLocation.lat, longitude: userLocation.lng }} anchor={{ x: 0.5, y: 0.5 }} zIndex={100}>

@@ -1,27 +1,172 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useRef, useMemo } from "react";
+import { View, StyleSheet } from "react-native";
 import type { Complaint, SOSAlert, Worker, PoliceStation, RiskZone, GeoPoint } from "@/context/AppContext";
-import Colors from "@/constants/colors";
 
 export type MapFilter = "all" | "complaints" | "sos" | "workers" | "police" | "risks";
 
-// Uttarakhand 13 districts with approximate center coords and geo outlines
-const UK_DISTRICTS = [
-  { name: "Dehradun",          cx: 35, cy: 62, label: "DDN"  },
-  { name: "Haridwar",          cx: 28, cy: 75, label: "HRW"  },
-  { name: "Tehri Garhwal",     cx: 44, cy: 56, label: "TGA"  },
-  { name: "Pauri Garhwal",     cx: 52, cy: 68, label: "PGA"  },
-  { name: "Rudraprayag",       cx: 56, cy: 52, label: "RPG"  },
-  { name: "Chamoli",           cx: 66, cy: 44, label: "CML"  },
-  { name: "Uttarkashi",        cx: 46, cy: 38, label: "UTK"  },
-  { name: "Pithoragarh",       cx: 82, cy: 54, label: "PTG"  },
-  { name: "Bageshwar",         cx: 74, cy: 56, label: "BGW"  },
-  { name: "Almora",            cx: 70, cy: 65, label: "ALM"  },
-  { name: "Champawat",         cx: 78, cy: 72, label: "CPW"  },
-  { name: "Nainital",          cx: 60, cy: 76, label: "NTL"  },
-  { name: "Udham Singh Nagar", cx: 50, cy: 88, label: "USN"  },
-];
+const DISTRICT_CENTERS: Record<string, { lat: number; lng: number; zoom: number }> = {
+  "Dehradun":          { lat: 30.3165, lng: 78.0322, zoom: 11 },
+  "Haridwar":          { lat: 29.9457, lng: 78.1642, zoom: 11 },
+  "Tehri Garhwal":     { lat: 30.3822, lng: 78.4800, zoom: 10 },
+  "Pauri Garhwal":     { lat: 29.6864, lng: 78.9764, zoom: 10 },
+  "Rudraprayag":       { lat: 30.2846, lng: 78.9806, zoom: 10 },
+  "Chamoli":           { lat: 30.4090, lng: 79.3206, zoom: 10 },
+  "Uttarkashi":        { lat: 30.7268, lng: 78.4354, zoom: 10 },
+  "Pithoragarh":       { lat: 29.5829, lng: 80.2178, zoom: 10 },
+  "Bageshwar":         { lat: 29.8371, lng: 79.7715, zoom: 11 },
+  "Almora":            { lat: 29.5971, lng: 79.6596, zoom: 11 },
+  "Champawat":         { lat: 29.3377, lng: 80.0914, zoom: 11 },
+  "Nainital":          { lat: 29.3919, lng: 79.4542, zoom: 11 },
+  "Udham Singh Nagar": { lat: 28.9982, lng: 79.5050, zoom: 11 },
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  P1: "#EF4444", P2: "#F59E0B", P3: "#3B82F6", P4: "#6B7280",
+};
+const RISK_COLORS: Record<string, string> = {
+  flood: "#3B82F6", garbage: "#22C55E", infrastructure: "#F59E0B", crime: "#EF4444",
+};
+
+interface MarkerData {
+  lat: number;
+  lng: number;
+  color: string;
+  type: "complaint" | "sos" | "worker" | "police" | "risk";
+  title: string;
+  subtitle: string;
+  radius: number;
+  ringRadius?: number;
+}
+
+function buildLeafletHTML(
+  markers: MarkerData[],
+  center: { lat: number; lng: number; zoom: number },
+  userLoc: { lat: number; lng: number } | null
+): string {
+  const markersJson = JSON.stringify(markers);
+  const userJson = JSON.stringify(userLoc);
+  const cLat = center.lat;
+  const cLng = center.lng;
+  const cZoom = center.zoom;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body,#map{width:100%;height:100%;background:#0d1117}
+  .leaflet-container{background:#0d1117}
+  .leaflet-popup-content-wrapper{background:#111827;border:1px solid #1F2937;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.6);padding:0}
+  .leaflet-popup-content{margin:0;color:#fff}
+  .leaflet-popup-tip-container{display:none}
+  .leaflet-control-zoom{border:1px solid #1F2937!important;border-radius:10px!important;overflow:hidden}
+  .leaflet-control-zoom a{background:#111827!important;color:#9CA3AF!important;border:none!important;font-size:16px!important;width:32px!important;height:32px!important;line-height:32px!important}
+  .leaflet-control-zoom a:hover{background:#1F2937!important;color:#fff!important}
+  .leaflet-attribution-flag{display:none!important}
+  .leaflet-control-attribution{background:rgba(17,24,39,0.8)!important;color:#4B5563!important;font-size:9px!important;border-radius:6px!important;border:1px solid #1F2937!important;padding:2px 6px!important}
+  .leaflet-control-attribution a{color:#6B7280!important}
+  .popup-box{padding:10px 12px;min-width:180px}
+  .popup-title{font-weight:700;font-size:12px;color:#fff;margin-bottom:4px;font-family:sans-serif;line-height:1.3}
+  .popup-sub{font-size:11px;color:#9CA3AF;font-family:sans-serif;line-height:1.4}
+  .popup-type{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 6px;border-radius:4px;margin-bottom:6px;text-transform:uppercase}
+  .user-pulse{animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+var map=L.map('map',{
+  center:[${cLat},${cLng}],
+  zoom:${cZoom},
+  zoomControl:true,
+  attributionControl:true,
+  preferCanvas:true
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+  subdomains:'abcd',
+  maxZoom:19
+}).addTo(map);
+
+var typeColors={
+  complaint:'#F59E0B',sos:'#EF4444',worker:'#06B6D4',police:'#F59E0B',risk:'#8B5CF6'
+};
+var typeLabels={
+  complaint:'ISSUE',sos:'SOS',worker:'WORKER',police:'POLICE',risk:'RISK'
+};
+
+var markersData=${markersJson};
+
+markersData.forEach(function(m){
+  if(m.type==='risk'){
+    L.circle([m.lat,m.lng],{
+      radius:m.ringRadius||2000,
+      fillColor:m.color,
+      color:m.color,
+      weight:1,
+      opacity:0.5,
+      fillOpacity:0.12,
+      interactive:false
+    }).addTo(map);
+  }
+
+  var marker=L.circleMarker([m.lat,m.lng],{
+    radius:m.radius,
+    fillColor:m.color,
+    color:'rgba(0,0,0,0.3)',
+    weight:1.5,
+    opacity:1,
+    fillOpacity:0.9
+  }).addTo(map);
+
+  var popupHTML='<div class="popup-box">'
+    +'<span class="popup-type" style="background:'+m.color+'22;color:'+m.color+'">'+typeLabels[m.type]+'</span>'
+    +'<div class="popup-title">'+m.title+'</div>'
+    +'<div class="popup-sub">'+m.subtitle+'</div>'
+    +'</div>';
+  marker.bindPopup(popupHTML,{maxWidth:240,closeButton:false});
+});
+
+var userLoc=${userJson};
+if(userLoc){
+  L.circle([userLoc.lat,userLoc.lng],{
+    radius:400,
+    fillColor:'#22C55E',
+    color:'#22C55E',
+    weight:1,
+    opacity:0.4,
+    fillOpacity:0.08,
+    interactive:false
+  }).addTo(map);
+
+  L.circleMarker([userLoc.lat,userLoc.lng],{
+    radius:9,
+    fillColor:'#22C55E',
+    color:'#fff',
+    weight:2.5,
+    fillOpacity:1
+  }).addTo(map)
+    .bindPopup('<div class="popup-box"><span class="popup-type" style="background:#22C55E22;color:#22C55E">YOU</span><div class="popup-title">Your Location</div><div class="popup-sub">'+userLoc.lat.toFixed(5)+'°N, '+userLoc.lng.toFixed(5)+'°E</div></div>',{maxWidth:200,closeButton:false});
+}
+
+window.addEventListener('message',function(e){
+  try{
+    var msg=JSON.parse(e.data);
+    if(msg.type==='panTo'){
+      map.setView([msg.lat,msg.lng],msg.zoom||12,{animate:true});
+    }
+  }catch(err){}
+});
+</script>
+</body>
+</html>`;
+}
 
 interface Props {
   complaints?: Complaint[];
@@ -35,220 +180,145 @@ interface Props {
   style?: any;
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  P1: "#EF4444", P2: "#F59E0B", P3: "#3B82F6", P4: "#6B7280",
-};
-
-const RISK_COLORS: Record<string, string> = {
-  flood: "#3B82F6", garbage: "#22C55E", infrastructure: "#F59E0B", crime: "#EF4444",
-};
-
-function Dot({ color, size = 10 }: { color: string; size?: number }) {
-  return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, flexShrink: 0 }} />;
-}
-
-// Map Uttarakhand geo coords to percentage positions
-const UK_BOUNDS = { minLat: 28.65, maxLat: 31.45, minLng: 77.30, maxLng: 81.15 };
-const NORM_LAT = (lat: number) => ((lat - UK_BOUNDS.minLat) / (UK_BOUNDS.maxLat - UK_BOUNDS.minLat));
-const NORM_LNG = (lng: number) => ((lng - UK_BOUNDS.minLng) / (UK_BOUNDS.maxLng - UK_BOUNDS.minLng));
-
 export default function UttarakhandMap({
-  complaints = [], sosAlerts = [], workers = [], policeStations = [],
-  riskZones = [], filter = "all", userLocation, userDistrict, style,
+  complaints = [],
+  sosAlerts = [],
+  workers = [],
+  policeStations = [],
+  riskZones = [],
+  filter = "all",
+  userLocation,
+  userDistrict,
+  style,
 }: Props) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const containerRef = useRef<any>(null);
 
   const show = (type: "complaints" | "sos" | "workers" | "police" | "risks") =>
     filter === "all" || filter === type;
 
-  type DotItem = { id: string; lat: number; lng: number; color: string; icon: keyof typeof Ionicons.glyphMap; label: string; sub: string };
-  const dots: DotItem[] = [];
+  const markers = useMemo<MarkerData[]>(() => {
+    const result: MarkerData[] = [];
 
-  if (show("complaints")) {
-    complaints.slice(0, 80).forEach(c => dots.push({
-      id: "c-" + c.id, lat: c.geo.lat, lng: c.geo.lng,
-      color: PRIORITY_COLORS[c.priority] || "#6B7280",
-      icon: "alert-circle", label: c.category, sub: c.location
-    }));
-  }
-  if (show("sos")) {
-    sosAlerts.forEach(s => dots.push({
-      id: "s-" + s.id, lat: s.geo.lat, lng: s.geo.lng,
-      color: "#EF4444", icon: "warning",
-      label: s.category.replace(/_/g, " "), sub: s.location
-    }));
-  }
-  if (show("workers")) {
-    workers.filter(w => w.geo).forEach(w => dots.push({
-      id: "w-" + w.id, lat: w.geo!.lat, lng: w.geo!.lng,
-      color: "#06B6D4", icon: "person",
-      label: w.name, sub: w.currentTask || "On duty"
-    }));
-  }
-  if (show("police")) {
-    policeStations.forEach(ps => dots.push({
-      id: "p-" + ps.id, lat: ps.geo.lat, lng: ps.geo.lng,
-      color: "#F59E0B", icon: "shield",
-      label: ps.name, sub: ps.phone
-    }));
-  }
-  if (show("risks")) {
-    riskZones.filter(rz => rz.geo).forEach(rz => dots.push({
-      id: "r-" + rz.id, lat: rz.geo.lat, lng: rz.geo.lng,
-      color: RISK_COLORS[rz.type], icon: "flame",
-      label: rz.type, sub: rz.description
-    }));
-  }
+    if (show("complaints")) {
+      complaints.slice(0, 100).forEach(c => {
+        if (c.geo?.lat && c.geo?.lng) {
+          result.push({
+            lat: c.geo.lat, lng: c.geo.lng,
+            color: PRIORITY_COLORS[c.priority] || "#6B7280",
+            type: "complaint", radius: 7,
+            title: `${c.ticketId} — ${c.category.toUpperCase()}`,
+            subtitle: `${c.priority} · ${c.status} · ${c.location}`,
+          });
+        }
+      });
+    }
 
-  const sel = dots.find(d => d.id === selected);
+    if (show("sos")) {
+      sosAlerts.filter(s => s.status !== "resolved").forEach(s => {
+        if (s.geo?.lat && s.geo?.lng) {
+          result.push({
+            lat: s.geo.lat, lng: s.geo.lng,
+            color: s.category === "women_safety" ? "#8B5CF6" : "#EF4444",
+            type: "sos", radius: 11,
+            title: `SOS: ${s.category.replace(/_/g, " ").toUpperCase()}`,
+            subtitle: `${s.status.toUpperCase()} · ${s.location}`,
+          });
+        }
+      });
+    }
+
+    if (show("workers")) {
+      workers.filter(w => w.geo && w.status === "active").forEach(w => {
+        if (w.geo?.lat && w.geo?.lng) {
+          result.push({
+            lat: w.geo!.lat, lng: w.geo!.lng,
+            color: "#06B6D4", type: "worker", radius: 8,
+            title: w.name,
+            subtitle: w.currentTask || "On duty",
+          });
+        }
+      });
+    }
+
+    if (show("police")) {
+      policeStations.forEach(ps => {
+        if (ps.geo?.lat && ps.geo?.lng) {
+          result.push({
+            lat: ps.geo.lat, lng: ps.geo.lng,
+            color: "#F59E0B", type: "police", radius: 9,
+            title: ps.name,
+            subtitle: ps.phone,
+          });
+        }
+      });
+    }
+
+    if (show("risks")) {
+      riskZones.filter(rz => rz.geo).forEach(rz => {
+        if (rz.geo?.lat && rz.geo?.lng) {
+          result.push({
+            lat: rz.geo.lat, lng: rz.geo.lng,
+            color: RISK_COLORS[rz.type] || "#8B5CF6",
+            type: "risk", radius: 10,
+            ringRadius: (rz.radius || 2) * 600,
+            title: `${rz.type.toUpperCase()} RISK`,
+            subtitle: `Severity: ${rz.severity} · ${rz.description}`,
+          });
+        }
+      });
+    }
+
+    return result;
+  }, [complaints, sosAlerts, workers, policeStations, riskZones, filter]);
+
+  const center = useMemo(() => {
+    if (userDistrict && userDistrict !== "Uttarakhand" && DISTRICT_CENTERS[userDistrict]) {
+      return DISTRICT_CENTERS[userDistrict];
+    }
+    return { lat: 30.0668, lng: 79.0193, zoom: 8 };
+  }, [userDistrict]);
+
+  const html = useMemo(() =>
+    buildLeafletHTML(
+      markers,
+      center,
+      userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null
+    ),
+    [markers, center, userLocation]
+  );
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "width:100%;height:100%;border:none;display:block;";
+    iframe.setAttribute("srcdoc", html);
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    iframe.setAttribute("title", "Uttarakhand District Map");
+
+    while (el.firstChild) el.removeChild(el.firstChild);
+    el.appendChild(iframe);
+
+    return () => {
+      if (el.contains(iframe)) {
+        while (el.firstChild) el.removeChild(el.firstChild);
+      }
+    };
+  }, [html]);
 
   return (
-    <View style={[styles.container, style]}>
-      <View style={styles.mapBg}>
-        {/* Uttarakhand district labels on the "map" */}
-        <Text style={styles.mapLabel}>UTTARAKHAND</Text>
-        <Text style={styles.mapSub}>देवभूमि — 13 Districts</Text>
-
-        {/* District name chips */}
-        {UK_DISTRICTS.map(d => {
-          const isUserDistrict = userDistrict && userDistrict !== "Uttarakhand" && d.name === userDistrict;
-          return (
-            <View
-              key={d.name}
-              style={[
-                styles.districtChip,
-                { left: `${d.cx}%`, top: `${d.cy}%` },
-                isUserDistrict && styles.districtChipActive,
-              ]}
-            >
-              <Text style={[styles.districtLabel, isUserDistrict && styles.districtLabelActive]}>
-                {d.label}
-              </Text>
-            </View>
-          );
-        })}
-
-        {/* Data dots */}
-        {dots.map(dot => {
-          const left = NORM_LNG(dot.lng) * 100;
-          const top = (1 - NORM_LAT(dot.lat)) * 100;
-          if (left < 0 || left > 100 || top < 0 || top > 100) return null;
-          return (
-            <Pressable
-              key={dot.id}
-              onPress={() => setSelected(selected === dot.id ? null : dot.id)}
-              style={[styles.mapDot, { left: `${left}%`, top: `${top}%`, backgroundColor: dot.color + "cc", borderColor: dot.color }]}
-            >
-              <View style={[styles.mapDotInner, { backgroundColor: dot.color }]} />
-            </Pressable>
-          );
-        })}
-
-        {/* User location */}
-        {userLocation && (() => {
-          const left = NORM_LNG(userLocation.lng) * 100;
-          const top = (1 - NORM_LAT(userLocation.lat)) * 100;
-          if (left < 0 || left > 100 || top < 0 || top > 100) return null;
-          return (
-            <View style={[styles.userDot, { left: `${left}%`, top: `${top}%` }]}>
-              <View style={styles.userDotInner} />
-            </View>
-          );
-        })()}
-
-        {/* Tooltip */}
-        {sel && (
-          <View style={styles.tooltip}>
-            <Ionicons name={sel.icon} size={14} color={sel.color} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tooltipTitle} numberOfLines={1}>{sel.label}</Text>
-              <Text style={styles.tooltipSub} numberOfLines={1}>{sel.sub}</Text>
-            </View>
-            <Pressable onPress={() => setSelected(null)}>
-              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-            </Pressable>
-          </View>
-        )}
-      </View>
-
-      {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}><Dot color="#EF4444" /><Text style={styles.legendText}>P1</Text></View>
-        <View style={styles.legendItem}><Dot color="#F59E0B" /><Text style={styles.legendText}>P2</Text></View>
-        <View style={styles.legendItem}><Dot color="#3B82F6" /><Text style={styles.legendText}>P3</Text></View>
-        <View style={styles.legendItem}><Dot color="#06B6D4" /><Text style={styles.legendText}>Workers</Text></View>
-        <View style={styles.legendItem}><Dot color="#EF4444" size={8} /><Text style={styles.legendText}>SOS</Text></View>
-        <View style={styles.legendItem}><Dot color="#F59E0B" /><Text style={styles.legendText}>Police</Text></View>
-        {userDistrict && userDistrict !== "Uttarakhand" && (
-          <View style={styles.legendItem}><View style={styles.userDistrictDot} /><Text style={[styles.legendText, { color: "#22C55E" }]}>{userDistrict}</Text></View>
-        )}
-      </View>
-    </View>
+    <View
+      ref={containerRef}
+      style={[styles.container, style]}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { overflow: "hidden", backgroundColor: "#0d1117", borderRadius: 16 },
-  mapBg: {
-    width: "100%", height: 320, backgroundColor: "#0d1117",
-    position: "relative", borderBottomWidth: 1, borderBottomColor: Colors.border,
+  container: {
+    flex: 1,
+    backgroundColor: "#0d1117",
+    overflow: "hidden",
   },
-  mapLabel: {
-    position: "absolute", top: "8%", left: "50%",
-    transform: [{ translateX: -55 }],
-    color: "#1E3A5F", fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 3,
-  },
-  mapSub: {
-    position: "absolute", top: "16%", left: "50%",
-    transform: [{ translateX: -55 }],
-    color: "#1E3A5F", fontSize: 9, fontFamily: "Inter_400Regular",
-  },
-  districtChip: {
-    position: "absolute",
-    transform: [{ translateX: -14 }, { translateY: -10 }],
-    backgroundColor: "#1E293B",
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  districtChipActive: {
-    backgroundColor: "#064E3B",
-    borderColor: "#22C55E",
-  },
-  districtLabel: {
-    color: "#64748B",
-    fontSize: 7,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.5,
-  },
-  districtLabelActive: {
-    color: "#22C55E",
-  },
-  mapDot: {
-    position: "absolute", width: 16, height: 16, borderRadius: 8, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-    transform: [{ translateX: -8 }, { translateY: -8 }],
-  },
-  mapDotInner: { width: 6, height: 6, borderRadius: 3 },
-  userDot: {
-    position: "absolute", width: 20, height: 20, borderRadius: 10,
-    backgroundColor: "#22C55E44", borderWidth: 2, borderColor: "#22C55E",
-    alignItems: "center", justifyContent: "center",
-    transform: [{ translateX: -10 }, { translateY: -10 }],
-  },
-  userDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22C55E" },
-  tooltip: {
-    position: "absolute", bottom: 12, left: 12, right: 12,
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(10,15,28,0.95)", borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  tooltipTitle: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  tooltipSub: { color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular" },
-  legend: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 10, flexWrap: "wrap" },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendText: { color: Colors.textMuted, fontSize: 10, fontFamily: "Inter_400Regular" },
-  userDistrictDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#22C55E" },
 });
