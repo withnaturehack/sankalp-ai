@@ -36,9 +36,12 @@ function setupCors(app: express.Application) {
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
 
+    // Allow any Replit dev domain (covers all developer preview origins)
+    const isReplitDev = !!origin?.match(/https:\/\/[\w-]+\.pike\.replit\.dev$|https:\/\/[\w-]+-\d+\.[\w-]+\.replit\.dev$|https:\/\/[\w-]+\.replit\.dev$/);
+
     // No origin = mobile/native app (Expo Go) — always allow
-    // Known origin = web browser — allow if in set or localhost
-    const allowed = !origin || origins.has(origin) || isLocalhost;
+    // Known origin = web browser — allow if in set, localhost, or any replit.dev
+    const allowed = !origin || origins.has(origin) || isLocalhost || isReplitDev;
     if (allowed) {
       res.header("Access-Control-Allow-Origin", origin ?? "*");
       res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");

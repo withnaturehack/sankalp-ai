@@ -5,6 +5,9 @@ import Constants from "expo-constants";
  * Gets the base URL for the Express API server
  */
 export function getWsUrl(): string {
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `wss://${process.env.EXPO_PUBLIC_DOMAIN}/ws`;
+  }
   if (typeof window !== "undefined") {
     if (window.location.hostname === "localhost") {
       return "ws://localhost:5000/ws";
@@ -12,33 +15,33 @@ export function getWsUrl(): string {
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${wsProtocol}//${window.location.host}/ws`;
   }
-  if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return `wss://${process.env.EXPO_PUBLIC_DOMAIN}/ws`;
-  }
   return "ws://localhost:5000/ws";
 }
 
 export function getApiUrl(): string {
+  // Always prefer the explicit domain env var — works in both native and web dev/prod
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `https://${process.env.EXPO_PUBLIC_DOMAIN}/`;
+  }
+
   if (typeof window !== "undefined") {
     if (window.location.hostname === "localhost") {
       return "http://localhost:5000/";
     }
+    // Only fall back to window.location.origin when no domain is configured
+    // (e.g. pure browser usage without the env var)
     return window.location.origin + "/";
-  }
-
-  if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return `https://${process.env.EXPO_PUBLIC_DOMAIN}/`;
   }
 
   const host =
     (Constants.expoConfig as any)?.extra?.EXPO_PUBLIC_DOMAIN ??
     (Constants.manifest as any)?.extra?.EXPO_PUBLIC_DOMAIN;
 
-  if (!host) {
-    return "http://localhost:5000/";
+  if (host) {
+    return `https://${host}/`;
   }
 
-  return `https://${host}/`;
+  return "http://localhost:5000/";
 }
 
 async function throwIfResNotOk(res: Response) {
