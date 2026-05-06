@@ -56,7 +56,7 @@ EXPO_PUBLIC_DOMAIN=sankalp-ai.replit.app EXPO_NO_TELEMETRY=1 EXPO_NO_DOTENV=1 \
 
 ## Architecture decisions
 
-- **Unified Leaflet Map**: Both native (WebView) and web (iframe) use identical Leaflet.js HTML with CartoDB dark tiles. No Google Maps API key needed. Works in Expo Go out of the box.
+- **Unified Leaflet Map**: Both native (WebView) and web (iframe) use identical Leaflet.js HTML with CartoDB Positron (light/white) tiles. No Google Maps API key needed. Works in Expo Go out of the box.
 - **In-memory Backend Storage**: Simplifies deployment; suitable for demo/prototype.
 - **Token-based Authentication**: Bearer tokens in AsyncStorage; stateless API.
 - **Dynamic API URL Resolution**: `getApiUrl()` returns `https://sankalp-ai.replit.app/` in production builds, `localhost:5000` in dev.
@@ -89,7 +89,8 @@ EXPO_PUBLIC_DOMAIN=sankalp-ai.replit.app EXPO_NO_TELEMETRY=1 EXPO_NO_DOTENV=1 \
 - **useNativeDriver on web**: All animations use `useNativeDriver: false` for web. Warning about native module is expected and benign.
 - **Demo User Auth**: Seeded users use plain-text PINs. New registrations use bcrypt.
 - **NVIDIA_API_KEY**: Optional. AI chat falls back gracefully if missing.
-- **Map Tiles**: CartoDB dark tiles load from CDN (`unpkg.com`, `basemaps.cartocdn.com`) — requires internet. Works in Expo Go and browser.
+- **Map Tiles**: CartoDB Positron (light/white) tiles from CDN (`unpkg.com`, `basemaps.cartocdn.com`) — requires internet. Works in Expo Go and browser.
+- **PWA**: `static-build/web/index.html` includes apple-mobile-web-app-capable + theme-color tags so users can "Add to Home Screen" for full-screen native-like experience.
 - **Location Subscription**: `watchPositionAsync.remove()` wrapped in try-catch to prevent `LocationEventEmitter.removeSubscription` crash in some Expo SDK versions.
 
 ## Pointers

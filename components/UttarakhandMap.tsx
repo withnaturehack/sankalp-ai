@@ -59,21 +59,23 @@ function buildLeafletHTML(
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body,#map{width:100%;height:100%;background:#0d1117}
-  .leaflet-container{background:#0d1117}
-  .leaflet-popup-content-wrapper{background:#111827;border:1px solid #1F2937;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.6);padding:0}
-  .leaflet-popup-content{margin:0;color:#fff}
+  html,body,#map{width:100%;height:100%;background:#f8f9fa}
+  .leaflet-container{background:#f8f9fa}
+  .leaflet-popup-content-wrapper{background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:0}
+  .leaflet-popup-content{margin:0;color:#111827}
+  .leaflet-popup-tip{background:#ffffff}
   .leaflet-popup-tip-container{display:none}
-  .leaflet-control-zoom{border:1px solid #374151!important;border-radius:10px!important;overflow:hidden}
-  .leaflet-control-zoom a{background:#1F2937!important;color:#9CA3AF!important;border:none!important;font-size:18px!important;width:36px!important;height:36px!important;line-height:36px!important}
-  .leaflet-control-zoom a:hover{background:#374151!important;color:#fff!important}
+  .leaflet-control-zoom{border:1px solid #d1d5db!important;border-radius:10px!important;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)!important}
+  .leaflet-control-zoom a{background:#ffffff!important;color:#374151!important;border:none!important;font-size:18px!important;width:36px!important;height:36px!important;line-height:36px!important;border-bottom:1px solid #e5e7eb!important}
+  .leaflet-control-zoom a:last-child{border-bottom:none!important}
+  .leaflet-control-zoom a:hover{background:#f3f4f6!important;color:#111827!important}
   .leaflet-attribution-flag{display:none!important}
-  .leaflet-control-attribution{background:rgba(17,24,39,0.85)!important;color:#4B5563!important;font-size:9px!important;border-radius:6px!important;border:1px solid #374151!important;padding:2px 6px!important}
+  .leaflet-control-attribution{background:rgba(255,255,255,0.9)!important;color:#9CA3AF!important;font-size:9px!important;border-radius:6px!important;border:1px solid #e5e7eb!important;padding:2px 6px!important}
   .leaflet-control-attribution a{color:#6B7280!important}
   .popup-box{padding:10px 12px;min-width:160px}
-  .popup-title{font-weight:700;font-size:13px;color:#fff;margin-bottom:4px;font-family:sans-serif;line-height:1.3}
-  .popup-sub{font-size:11px;color:#9CA3AF;font-family:sans-serif;line-height:1.4}
-  .popup-type{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 6px;border-radius:4px;margin-bottom:6px;text-transform:uppercase}
+  .popup-title{font-weight:700;font-size:13px;color:#111827;margin-bottom:4px;font-family:sans-serif;line-height:1.3}
+  .popup-sub{font-size:11px;color:#6B7280;font-family:sans-serif;line-height:1.4}
+  .popup-type{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 7px;border-radius:4px;margin-bottom:6px;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -88,8 +90,8 @@ var map=L.map('map',{
   preferCanvas:true
 });
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-  attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
   subdomains:'abcd',
   maxZoom:19
 }).addTo(map);
@@ -106,7 +108,7 @@ markersData.forEach(function(m){
       radius:m.ringRadius||2000,
       fillColor:m.color,
       color:m.color,
-      weight:1,
+      weight:2,
       opacity:0.5,
       fillOpacity:0.12,
       interactive:false
@@ -116,14 +118,14 @@ markersData.forEach(function(m){
   var marker=L.circleMarker([m.lat,m.lng],{
     radius:m.radius,
     fillColor:m.color,
-    color:'rgba(0,0,0,0.3)',
-    weight:1.5,
+    color:'#ffffff',
+    weight:2,
     opacity:1,
-    fillOpacity:0.9
+    fillOpacity:0.92
   }).addTo(map);
 
   var popupHTML='<div class="popup-box">'
-    +'<span class="popup-type" style="background:'+m.color+'22;color:'+m.color+'">'+typeLabels[m.type]+'</span>'
+    +'<span class="popup-type" style="background:'+m.color+'18;color:'+m.color+'">'+typeLabels[m.type]+'</span>'
     +'<div class="popup-title">'+m.title+'</div>'
     +'<div class="popup-sub">'+m.subtitle+'</div>'
     +'</div>';
@@ -134,22 +136,22 @@ var userLoc=${userJson};
 if(userLoc){
   L.circle([userLoc.lat,userLoc.lng],{
     radius:400,
-    fillColor:'#22C55E',
-    color:'#22C55E',
-    weight:1,
+    fillColor:'#FF9933',
+    color:'#FF9933',
+    weight:1.5,
     opacity:0.4,
-    fillOpacity:0.08,
+    fillOpacity:0.1,
     interactive:false
   }).addTo(map);
 
   L.circleMarker([userLoc.lat,userLoc.lng],{
     radius:10,
-    fillColor:'#22C55E',
-    color:'#fff',
+    fillColor:'#FF9933',
+    color:'#ffffff',
     weight:2.5,
     fillOpacity:1
   }).addTo(map)
-    .bindPopup('<div class="popup-box"><span class="popup-type" style="background:#22C55E22;color:#22C55E">YOU</span><div class="popup-title">Your Location</div><div class="popup-sub">'+userLoc.lat.toFixed(5)+'\u00B0N, '+userLoc.lng.toFixed(5)+'\u00B0E</div></div>',{maxWidth:200,closeButton:false});
+    .bindPopup('<div class="popup-box"><span class="popup-type" style="background:#FF993318;color:#FF9933">YOU</span><div class="popup-title">Your Location</div><div class="popup-sub">'+userLoc.lat.toFixed(5)+'\u00B0N, '+userLoc.lng.toFixed(5)+'\u00B0E</div></div>',{maxWidth:200,closeButton:false});
 
   map.setView([userLoc.lat,userLoc.lng],${cZoom},{animate:false});
 }
@@ -317,21 +319,21 @@ export default function UttarakhandMap({
         onHttpError={e => console.warn("[Map] HTTP error:", e.nativeEvent.statusCode)}
       />
       <Pressable style={styles.recenterBtn} onPress={recenter}>
-        <Ionicons name="locate" size={20} color="#fff" />
+        <Ionicons name="locate" size={20} color="#374151" />
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0d1117", overflow: "hidden" },
+  container: { flex: 1, backgroundColor: "#f8f9fa", overflow: "hidden" },
   recenterBtn: {
     position: "absolute", bottom: 16, right: 16,
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#1F2937",
-    borderWidth: 1, borderColor: "#374151",
+    backgroundColor: "#ffffff",
+    borderWidth: 1, borderColor: "#d1d5db",
     alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
+    shadowOpacity: 0.12, shadowRadius: 6, elevation: 4,
   },
 });
