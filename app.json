@@ -15,7 +15,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.sankalpai"
+      "bundleIdentifier": "com.sankalpai",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SANKALP AI needs your location to show nearby civic issues, police stations, and to share your location during SOS emergencies.",
+        "NSLocationAlwaysUsageDescription": "SANKALP AI uses your location in the background during active SOS emergencies to keep police updated.",
+        "NSMicrophoneUsageDescription": "SANKALP AI records audio during Women Safety SOS activations as evidence.",
+        "NSSpeechRecognitionUsageDescription": "SANKALP AI uses speech to detect voice-activated SOS commands."
+      }
     },
     "android": {
       "package": "com.sankalpai",
@@ -24,7 +30,17 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.FOREGROUND_SERVICE"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -33,11 +49,35 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "sankalpai://"
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "SANKALP AI needs your location to show nearby civic issues, police stations, and to share your GPS during SOS emergencies.",
+          "locationWhenInUsePermission": "SANKALP AI needs your location to show nearby civic issues and police stations.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#FF9933",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "SANKALP AI records audio during Women Safety SOS activations as evidence."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -45,7 +85,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://replit.com/"
+        "origin": "sankalpai://"
       },
       "eas": {
         "projectId": "5de0a065-9397-4f86-bcf7-0f186dd319fd"
