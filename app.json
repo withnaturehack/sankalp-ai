@@ -39,7 +39,9 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.USE_FULL_SCREEN_INTENT",
-        "android.permission.FOREGROUND_SERVICE"
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -86,7 +88,11 @@
     "extra": {
       "router": {
         "origin": "sankalpai://"
+      },
+      "eas": {
+        "projectId": "8baca95a-7fd7-4532-ad2c-a3d1aef33144"
       }
-    }
+    },
+    "owner": "suvidha.hub"
   }
 }
