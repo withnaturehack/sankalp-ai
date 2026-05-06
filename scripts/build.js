@@ -90,8 +90,9 @@ function prepareDirectories(timestamp) {
 }
 
 async function buildWebExport(expoPublicDomain) {
-  const webDir = path.join("static-build", "web");
-  console.log("Building web bundle (expo export)...");
+  const finalWebDir = path.join("static-build", "web");
+  const tmpWebDir = path.join("static-build", `_web_tmp_${Date.now()}`);
+  console.log("Building web bundle (expo export) into temp dir...");
 
   const env = {
     ...process.env,
@@ -103,7 +104,7 @@ async function buildWebExport(expoPublicDomain) {
   return new Promise((resolve) => {
     const proc = require("child_process").spawn(
       "node_modules/.bin/expo",
-      ["export", "--platform", "web", "--output-dir", webDir],
+      ["export", "--platform", "web", "--output-dir", tmpWebDir],
       { stdio: ["ignore", "pipe", "pipe"], env },
     );
 
@@ -117,18 +118,22 @@ async function buildWebExport(expoPublicDomain) {
     });
 
     const timer = setTimeout(() => {
-      console.error("Web build timed out after 5m — skipping web bundle");
+      console.error("Web build timed out after 5m — keeping existing web bundle");
       proc.kill();
+      if (fs.existsSync(tmpWebDir)) fs.rmSync(tmpWebDir, { recursive: true, force: true });
       resolve(false);
     }, 300_000);
 
     proc.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) {
+        if (fs.existsSync(finalWebDir)) fs.rmSync(finalWebDir, { recursive: true, force: true });
+        fs.renameSync(tmpWebDir, finalWebDir);
         console.log("Web bundle ready at static-build/web/");
         resolve(true);
       } else {
-        console.error(`Web build exited with code ${code} — native build will still work`);
+        if (fs.existsSync(tmpWebDir)) fs.rmSync(tmpWebDir, { recursive: true, force: true });
+        console.error(`Web build exited with code ${code} — keeping existing committed web bundle`);
         resolve(false);
       }
     });
